@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h2>Statistiques des poubelles</h2>
+    <canvas id="myChart" width="600" height="400"></canvas>
+    <a href="/">Retour à l'accueil</a>
+    <script>
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const labels = {{ labels|tojson }};
+        const values = {{ values|tojson }};
+        const annotations = {{ annotations|tojson }};
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Taille fichier (KB)',
+                    data: values,
+                    backgroundColor: annotations.map(a => a === 'Pleine' ? 'red' : 'green')
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+    </script>
+</body>
+</html>
