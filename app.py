@@ -20,6 +20,17 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 db = SQLAlchemy(app)
 
+def calculate_seuils_from_db():
+    seuils = {}
+    rules = ClassificationRule.query.all()
+    images = TrashImage.query.all()
+    for image in images:
+        for rule in rules:
+            seuils[rule.name] += 0
+    return seuils
+
+
+
 class TrashImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(150), nullable=False)
@@ -30,6 +41,7 @@ class TrashImage(db.Model):
     avg_color_r = db.Column(db.Integer)
     avg_color_g = db.Column(db.Integer)
     avg_color_b = db.Column(db.Integer)
+    contrast = db.Column(db.Integer)
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,13 +51,13 @@ class ClassificationRule(db.Model):
 with app.app_context():
     db.create_all()
     default_rules = {
-        "avg_r_threshold": 100,
-        "avg_g_threshold": 100,
-        "avg_b_threshold": 100,
-        "filesize_threshold_kb": 500,
-        "min_width": 100,
-        "min_height": 100,
-        "contrast_threshold": 0.05
+        "avg_color_r": 100,
+        "avg_color_g": 100,
+        "avg_color_b": 100,
+        "filesize_kb": 500,
+        "width": 100,
+        "height": 100,
+        "contrast": 0.05
     }
 
     for name, value in default_rules.items():
@@ -66,16 +78,16 @@ def extract_features(image_path):
     gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
     edges = cv2.Canny(gray, 100, 200)
     contrast = edges.sum() / (width * height)
-    return width, height, size, int(r), int(g), int(b)
+    return width, height, size, int(r), int(g), int(b), contrast
 
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast):
-    r_thresh = get_rule("avg_r_threshold", 100)
-    g_thresh = get_rule("avg_g_threshold", 100)
-    b_thresh = get_rule("avg_b_threshold", 100)
-    filesize_thresh = get_rule("filesize_threshold_kb", 500)
-    width_thresh = get_rule("min_width", 100)
-    height_thresh = get_rule("min_height", 100)
-    contrast_thresh = get_rule("contrast_threshold", 0.05)
+    r_thresh = get_rule("avg_color_r", 100)
+    g_thresh = get_rule("avg_color_g", 100)
+    b_thresh = get_rule("avg_color_b", 100)
+    filesize_thresh = get_rule("filesize_kb", 500)
+    width_thresh = get_rule("width", 100)
+    height_thresh = get_rule("height", 100)
+    contrast_thresh = get_rule("contrast", 0.05)
     if (avg_r < r_thresh and avg_g < g_thresh and avg_b < b_thresh and filesize_kb > filesize_thresh and width > width_thresh and height > height_thresh and contrast > contrast_thresh):
         return "Pleine"
     else:
@@ -95,23 +107,12 @@ def index():
         if img.filename == '':
             return "Aucun fichier sélectionné", 400
         if img and allowed_file(img.filename):
-            # Nom de fichier sécurisé et unique
             filename = img.filename
-            # Tu peux rajouter un UUID ou timestamp si tu veux éviter les collisions
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             img.save(filepath)
-
-            # Extraire les caractéristiques après sauvegarde
-            width, height, size, r, g, b = extract_features(filepath)
-            gray = cv2.cvtColor(np.array(Image.open(filepath).convert('RGB')), cv2.COLOR_RGB2GRAY)
-            edges = cv2.Canny(gray, 100, 200)
-            contrast = edges.sum() / (width * height)
-
+            width, height, size, r, g, b, contrast = extract_features(filepath)
             auto_annotation = classify_image(r, size, g, b, width, height, contrast)
-
-            # Récupérer annotation manuelle (peut être vide)
             annotation = request.form.get('annotation')
-            # Si annotation manuelle non fournie, utiliser automatique
             if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
                 annotation = auto_annotation
 
@@ -123,7 +124,8 @@ def index():
                 filesize_kb=round(size, 2),
                 avg_color_r=r,
                 avg_color_g=g,
-                avg_color_b=b
+                avg_color_b=b,
+                contrast=contrast
             )
             db.session.add(new_image)
             db.session.commit()

@@ -1,47 +1,82 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>BinVision</title>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Upload une image</h1>
     <a href="/rules">🔧 Configurer les règles de classification</a>
     <form method="POST" enctype="multipart/form-data">
-        <input type="file" name="image" accept=".png,.jpg,.jpeg" required>
-        <p>Choisir une annotation :</p>
-        <div id="annotation-buttons" style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <button type="button" onclick="selectAnnotation('Pleine')">Pleine</button>
-            <button type="button" onclick="selectAnnotation('Vide')">Vide</button>
-            <button type="button" onclick="selectAnnotation('Auto')">Auto</button>
-        </div>
-        <input type="hidden" name="annotation" id="annotation-input" required>
-        <button type="submit">Envoyer</button>
+      <input type="file" name="image" accept=".png,.jpg,.jpeg" required />
+      <img
+        id="preview"
+        src="#"
+        alt="Aperçu de l'image"
+        style="display: none; max-width: 300px; margin-top: 10px"
+      /><br />
+      <script>
+        document
+          .querySelector('input[type="file"]')
+          .addEventListener("change", function (event) {
+            const file = event.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = function (e) {
+                const preview = document.getElementById("preview");
+                preview.src = e.target.result;
+                preview.style.display = "block";
+              };
+              reader.readAsDataURL(file);
+            }
+          });
+      </script>
+      <p>Choisir une annotation :</p>
+      <div
+        id="annotation-buttons"
+        style="display: flex; gap: 10px; margin-bottom: 10px"
+      >
+        <button type="button" onclick="selectAnnotation('Pleine')">
+          Pleine
+        </button>
+        <button type="button" onclick="selectAnnotation('Vide')">Vide</button>
+        <button type="button" onclick="selectAnnotation('Auto')">Auto</button>
+      </div>
+      <input type="hidden" name="annotation" id="annotation-input" required />
+      <button type="submit">Envoyer</button>
     </form>
 
     <h2>Images enregistrées :</h2>
     <ul>
-        {% for img in images %}
-            <li>
-                <img src="{{ url_for('uploaded_file', filename=img.filename) }}" width="100"><br>
-                {{ img.filename }} – {{ img.annotation }}<br>
-                Taille: {{ img.filesize_kb }} KB – Dimensions: {{ img.width }}x{{ img.height }} – Moy. RGB: ({{ img.avg_color_r }}, {{ img.avg_color_g }}, {{ img.avg_color_b }})
-            </li>
-        {% endfor %}
+      {% for img in images %}
+      <li>
+        <img
+          src="{{ url_for('uploaded_file', filename=img.filename) }}"
+          width="100"
+        /><br />
+        {{ img.filename }} – {{ img.annotation }}<br />
+        Taille: {{ img.filesize_kb }} KB – Dimensions: {{ img.width }}x{{
+        img.height }} – Moy. RGB: ({{ img.avg_color_r }}, {{ img.avg_color_g }},
+        {{ img.avg_color_b }})
+      </li>
+      {% endfor %}
     </ul>
-</body>
-<script>
+  </body>
+  <script>
     function selectAnnotation(value) {
-        document.getElementById('annotation-input').value = value;
-        const buttons = document.querySelectorAll('#annotation-buttons button');
-        buttons.forEach(btn => {
-            btn.style.backgroundColor = '';
-        });
-        const selected = Array.from(buttons).find(btn => btn.textContent === value || (value === '' && btn.textContent === 'Aucune'));
-        if (selected) {
-            selected.style.backgroundColor = 'transparent';
-        }
+      document.getElementById("annotation-input").value = value;
+      const buttons = document.querySelectorAll("#annotation-buttons button");
+      buttons.forEach((btn) => {
+        btn.style.backgroundColor = "";
+      });
+      const selected = Array.from(buttons).find(
+        (btn) =>
+          btn.textContent === value ||
+          (value === "" && btn.textContent === "Aucune")
+      );
+      if (selected) {
+        selected.style.backgroundColor = "transparent";
+      }
     }
-</script>
-
+  </script>
 </html>
