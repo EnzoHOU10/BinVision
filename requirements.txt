@@ -1,0 +1,7 @@
+Flask
+flask_sqlalchemy
+pillow
+numpy
+opencv-python
+matplotlib
+mysql-connector-python
