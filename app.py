@@ -50,37 +50,42 @@ def calculate_seuils_from_db():
     }
     rules = ClassificationRule.query.all()
     images = TrashImage.query.all()
+    cpt=0
+    cpt_plein = 0
+    cpt_vide = 0
     for image in images:
         cpt+=1
+        if image.annotation == 'Pleine':
+            cpt_plein += 1
+        else:
+            cpt_vide += 1
         for rule in rules:
-            seuils[rule.name][0] += getattr(image, rule.name, 0)
-            if getattr(image, rule.name, 0) < min:
-                seuils[rule.name][1] = getattr(image, rule.name, 0)
-            if getattr(image, rule.name, 0) > max:
-                seuils[rule.name][2] = getattr(image, rule.name, 0)
+            seuils[rule.name][0] += getattr(image, rule.name, None)
+            if getattr(image, rule.name, None) < seuils[rule.name][1]:
+                seuils[rule.name][1] = getattr(image, rule.name, None)
+            if getattr(image, rule.name, None) > seuils[rule.name][2]:
+                seuils[rule.name][2] = getattr(image, rule.name, None)
             if image.annotation == 'Pleine':
-                seuils_plein[rule.name] += getattr(image, rule.name, 0)
-                cpt_plein += 1
-                if getattr(image, rule.name, 0) < min_plein:
-                    min_plein = getattr(image, rule.name, 0)
-                if getattr(image, rule.name, 0) > max_plein:
-                    max_plein = getattr(image, rule.name, 0)
+                seuils_plein[rule.name][0] += getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) < seuils_plein[rule.name][1]:
+                    seuils_plein[rule.name][1] = getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) > seuils_plein[rule.name][2]:
+                    seuils_plein[rule.name][2] = getattr(image, rule.name, None)
             else:
-                seuils_vide[rule.name] += getattr(image, rule.name, 0)
-                cpt_vide += 1
-                if getattr(image, rule.name, 0) < min_vide:
-                    min_vide = getattr(image, rule.name, 0)
-                if getattr(image, rule.name, 0) > max_vide:
-                    max_vide = getattr(image, rule.name, 0)
+                seuils_vide[rule.name][0] += getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) < seuils_vide[rule.name][1]:
+                    seuils_vide[rule.name][1] = getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) > seuils_vide[rule.name][2]:
+                    seuils_vide[rule.name][2] = getattr(image, rule.name, None)
     if cpt > 0:
         for rule in rules:
-            seuils[rule.name] = seuils[rule.name] / cpt
+                seuils[rule.name][0] = seuils[rule.name][0] / cpt
     if cpt_plein > 0:
         for rule in rules:
-            seuils_plein[rule.name] = seuils_plein[rule.name] / cpt_plein
+                seuils_plein[rule.name][0] = seuils_plein[rule.name][0] / cpt_plein
     if cpt_vide > 0:
         for rule in rules:
-            seuils_vide[rule.name] = seuils_vide[rule.name] / cpt_vide
+                seuils_vide[rule.name][0] = seuils_vide[rule.name][0] / cpt_vide
     return seuils, seuils_plein, seuils_vide
 
 
@@ -105,16 +110,27 @@ class ClassificationRule(db.Model):
 with app.app_context():
     db.create_all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    if not seuils:
+    if seuils_plein and seuils_vide:
         seuils = {
-            "avg_color_r": 100,
-            "avg_color_g": 100,
-            "avg_color_b": 100,
-            "filesize_kb": 500,
-            "width": 100,
-            "height": 100,
-            "contrast": 0.05
+            "avg_color_r": (seuils_plein["avg_color_r"][2] + seuils_vide["avg_color_r"][2]) / 2,
+            "avg_color_g": (seuils_plein["avg_color_g"][2] + seuils_vide["avg_color_g"][2]) / 2,
+            "avg_color_b": (seuils_plein["avg_color_b"][2] + seuils_vide["avg_color_b"][2]) / 2,
+            "filesize_kb": (seuils_plein["filesize_kb"][2] + seuils_vide["filesize_kb"][2]) / 2,
+            "width": (seuils_plein["width"][2] + seuils_vide["width"][2]) / 2,
+            "height": (seuils_plein["height"][2] + seuils_vide["height"][2]) / 2,
+            "contrast": (seuils_plein["contrast"][2] + seuils_vide["contrast"][2]) / 2
         }
+    else:
+        if not seuils:
+            seuils = {
+                "avg_color_r": 100,
+                "avg_color_g": 100,
+                "avg_color_b": 100,
+                "filesize_kb": 500,
+                "width": 100,
+                "height": 100,
+                "contrast": 0.05
+            }
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
             db.session.add(ClassificationRule(name=name, value=value))
@@ -231,7 +247,11 @@ def rules():
         return redirect('/rules')
     
     rules = ClassificationRule.query.all()
-    return render_template('rules.html', rules=rules)
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    print("Seuils:", seuils)
+    print("Seuils Plein:", seuils_plein)
+    print("Seuils Vide:", seuils_vide)
+    return render_template('rules.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide)
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):

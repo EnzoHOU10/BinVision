@@ -1,24 +1,73 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Modifier les règles</title>
-</head>
-<body>
+  </head>
+  <body>
     <h2>Modifier les règles de classification</h2>
     <form method="POST">
-        {% for rule in rules %}
-            <label for="{{ rule.name }}">{{ rule.name }}</label>
-            <input type="number" step="0.01" name="{{ rule.name }}" value="{{ rule.value }}">
-            <br>
-        {% endfor %}
-        <button type="submit">Enregistrer</button>
-    </form>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <p style="color: green;">{{ message }}</p>
+      {% for rule in rules %}
+      <label for="{{ rule.name }}">{{ rule.name }}</label>
+      <input
+        type="number"
+        step="0.01"
+        name="{{ rule.name }}"
+        value="{{ rule.value }}"
+      />
+      <br />
       {% endfor %}
-    {% endwith %}
+      <button type="submit">Enregistrer</button>
+    </form>
+    <h3>Règles actuelles :</h3>
+    <ul>
+      {% for seuil in seuils %}
+      <label for="{{ seuil }}">{{ seuil }}</label>
+      {% for val in seuil.value %}
+      <input
+        type="number"
+        step="0.01"
+        name="{{ seuil.name }}"
+        value="{{ val }}"
+      />
+      {% endfor %}
+      <br />
+      {% endfor %}
+    </ul>
+    <h3>Règles Plein</h3>
+    <ul>
+      {% for seuil_plein in seuils_plein %}
+      <label for="{{ seuil_plein.name }}">{{ seuil_plein.name }}</label>
+      {% for val in seuil_plein.value %}
+      <input
+        type="number"
+        step="0.01"
+        name="{{ seuil_plein.name }}"
+        value="{{ val }}"
+      />
+      {% endfor %}
+      <br />
+      {% endfor %}
+    </ul>
+    <h3>Règles Vide</h3>
+    <ul>
+      {% for seuil_vide in seuils_vide %}
+      <label for="{{ seuil_vide.name }}">{{ seuil_vide.name }}</label>
+      {% for val in seuil_vide.value %}
+      <input
+        type="number"
+        step="0.01"
+        name="{{ seuil_vide.name }}"
+        value="{{ val }}"
+      />
+      {% endfor %}
+      <br />
+      {% endfor %}
+    </ul>
+    {% with messages = get_flashed_messages(with_categories=true) %} {% for
+    category, message in messages %}
+    <p style="color: green">{{ message }}</p>
+    {% endfor %} {% endwith %}
     <a href="/">Retour à l'accueil</a>
-</body>
+  </body>
 </html>
