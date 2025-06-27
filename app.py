@@ -145,7 +145,7 @@ def extract_features(image_path):
     gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
     edges = cv2.Canny(gray, 100, 200)
     contrast = edges.sum() / (width * height)
-    return width, height, size, int(r), int(g), int(b), contrast
+    return width, height, float(size), int(r), int(g), int(b), float(contrast)
 
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast):
     r_thresh = get_rule("avg_color_r", 100)
@@ -177,44 +177,43 @@ def update_rule(name, value):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        if 'image' not in request.files:
-            return "Pas de fichier image", 400
-        img = request.files['image']
-        if img.filename == '':
-            return "Aucun fichier sélectionné", 400
-        if img and allowed_file(img.filename):
-            filename = img.filename
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            img.save(filepath)
-            width, height, size, r, g, b, contrast = extract_features(filepath)
-            auto_annotation = classify_image(r, size, g, b, width, height, contrast)
-            annotation = request.form.get('annotation')
-            
-            if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
-                annotation = auto_annotation
+        images = request.files.getlist('image')
+        print("Images reçues:", images)
+        for img in images:
+            print("Traitement de l'image:", img)
+            if img and allowed_file(img.filename):
+                filename = img.filename
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                img.save(filepath)
+                width, height, size, r, g, b, contrast = extract_features(filepath)
+                auto_annotation = classify_image(r, size, g, b, width, height, contrast)
+                annotation = request.form.get('annotation')
+                
+                if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
+                    annotation = auto_annotation
 
-            new_image = TrashImage(
-                filename=filename,
-                annotation=annotation.capitalize(),  # Majuscule
-                width=width,
-                height=height,
-                filesize_kb=round(size, 2),
-                avg_color_r=r,
-                avg_color_g=g,
-                avg_color_b=b,
-                contrast=contrast
-            )
-            db.session.add(new_image)
-            db.session.commit()
-            seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-            if seuils_plein and seuils_vide:
-                for rule in ClassificationRule.query.all():
-                    if rule.name in seuils_plein and rule.name in seuils_vide:
-                            update_rule(rule.name, (seuils_plein[rule.name][2] + seuils_vide[rule.name][2]) / 2)
-            return redirect('/')
-        else:
-            return "Format de fichier non supporté", 400
-
+                new_image = TrashImage(
+                    filename=filename,
+                    annotation=annotation.capitalize(),  # Majuscule
+                    width=width,
+                    height=height,
+                    filesize_kb=round(size, 2),
+                    avg_color_r=r,
+                    avg_color_g=g,
+                    avg_color_b=b,
+                    contrast=contrast
+                )
+                db.session.add(new_image)
+                db.session.commit()
+                seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+                if seuils_plein and seuils_vide:
+                    for rule in ClassificationRule.query.all():
+                        if rule.name in seuils_plein and rule.name in seuils_vide:
+                                update_rule(rule.name, (seuils_plein[rule.name][2] + seuils_vide[rule.name][2]) / 2)     
+            else:
+                return "Format de fichier non supporté", 400
+        return redirect('/')
+    
     images = TrashImage.query.all()
     return render_template('index.html', images=images)
 

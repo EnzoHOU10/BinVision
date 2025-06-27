@@ -8,26 +8,26 @@
     <h1>Upload une image</h1>
     <a href="/rules">🔧 Configurer les règles de classification</a>
     <form method="POST" enctype="multipart/form-data">
-      <input type="file" name="image" accept=".png,.jpg,.jpeg" required />
-      <img
-        id="preview"
-        src="#"
-        alt="Aperçu de l'image"
-        style="display: none; max-width: 300px; margin-top: 10px"
-      /><br />
+      <input
+        type="file"
+        name="image"
+        accept=".png,.jpg,.jpeg"
+        multiple
+        required
+      />
+      <div id="previewimage"></div>
       <script>
         document
           .querySelector('input[type="file"]')
-          .addEventListener("change", function (event) {
-            const file = event.target.files[0];
-            if (file) {
-              const reader = new FileReader();
-              reader.onload = function (e) {
-                const preview = document.getElementById("preview");
-                preview.src = e.target.result;
-                preview.style.display = "block";
-              };
-              reader.readAsDataURL(file);
+          .addEventListener("change", function (e) {
+            const preview = document.getElementById("previewimage");
+            const file = e.target.files[0];
+            for (let i = 0; i < e.target.files.length; i++) {
+              const img = document.createElement("img");
+              img.src = URL.createObjectURL(e.target.files[i]);
+              img.style.maxWidth = "200px";
+              img.style.maxHeight = "200px";
+              preview.appendChild(img);
             }
           });
       </script>
