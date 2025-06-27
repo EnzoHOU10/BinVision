@@ -7,43 +7,22 @@
   <body>
     <h1>Upload une image</h1>
     <a href="/rules">🔧 Configurer les règles de classification</a>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" id="Form" enctype="multipart/form-data">
       <input
         type="file"
+        id="input"
         name="image"
         accept=".png,.jpg,.jpeg"
         multiple
         required
       />
-      <div id="previewimage"></div>
-      <script>
-        document
-          .querySelector('input[type="file"]')
-          .addEventListener("change", function (e) {
-            const preview = document.getElementById("previewimage");
-            const file = e.target.files[0];
-            for (let i = 0; i < e.target.files.length; i++) {
-              const img = document.createElement("img");
-              img.src = URL.createObjectURL(e.target.files[i]);
-              img.style.maxWidth = "200px";
-              img.style.maxHeight = "200px";
-              preview.appendChild(img);
-            }
-          });
-      </script>
+      <div id="preview"></div>
       <p>Choisir une annotation :</p>
-      <div
-        id="annotation-buttons"
-        style="display: flex; gap: 10px; margin-bottom: 10px"
-      >
-        <button type="button" onclick="selectAnnotation('Pleine')">
-          Pleine
-        </button>
-        <button type="button" onclick="selectAnnotation('Vide')">Vide</button>
-        <button type="button" onclick="selectAnnotation('Auto')">Auto</button>
+      <div id="annotation-buttons" style="display: flex; gap: 10px; margin-bottom: 10px">
+        <button type="button" onclick="annotation('Pleine')">Pleine</button>
+        <button type="button" onclick="annotation('Vide')">Vide</button>
+        <button type="button" onclick="annotation('Auto')">Auto</button>
       </div>
-      <input type="hidden" name="annotation" id="annotation-input" required />
-      <button type="submit">Envoyer</button>
     </form>
 
     <h2>Images enregistrées :</h2>
@@ -63,20 +42,44 @@
     </ul>
   </body>
   <script>
-    function selectAnnotation(value) {
-      document.getElementById("annotation-input").value = value;
-      const buttons = document.querySelectorAll("#annotation-buttons button");
-      buttons.forEach((btn) => {
-        btn.style.backgroundColor = "";
-      });
-      const selected = Array.from(buttons).find(
-        (btn) =>
-          btn.textContent === value ||
-          (value === "" && btn.textContent === "Aucune")
-      );
-      if (selected) {
-        selected.style.backgroundColor = "transparent";
+    let files = [];
+    let currentIndex = 0;
+
+    document.getElementById('input').addEventListener("change", function (e) {
+      files = Array.from(e.target.files);
+      currentIndex = 0;
+      showCurrentImage();
+    });
+
+    function showCurrentImage() {
+      const preview = document.getElementById("preview");
+      preview.innerHTML = '';
+      if (currentIndex < files.length) {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(files[currentIndex]);
+        img.style.maxWidth = "200px";
+        img.style.maxHeight = "200px";
+        preview.appendChild(img);
+      } else {
+        location.reload();
       }
+    }
+
+    function annotation(annotation) {
+      if (currentIndex >= files.length) return;
+      const formData = new FormData();
+      formData.append("image", files[currentIndex]);
+      formData.append("annotation", annotation);
+      fetch("/", {
+        method: "POST",
+        body: formData,
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Erreur serveur");
+          currentIndex++;
+          showCurrentImage();
+        })
+        .catch((err) => alert("Erreur lors de l'envoi : " + err.message));
     }
   </script>
 </html>

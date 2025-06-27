@@ -21,48 +21,60 @@
     </form>
     <h3>Règles actuelles :</h3>
     <ul>
-      {% for seuil_key,seuil_value in seuils.items() %}
-      <label for="{{ seuil_key }}">{{ seuil_key }}</label>
-      {% for val in seuil_value %}
-      <input
-        type="number"
-        step="0.01"
-        name="{{ seuil_key }}"
-        value="{{ val }}"
-      />
-      {% endfor %}
-      <br />
-      {% endfor %}
+      {% if seuils %}
+        {% for seuil_key,seuil_value in seuils.items() %}
+        <label for="{{ seuil_key }}">{{ seuil_key }}</label>
+        {% for val in seuil_value %}
+        <input
+          type="number"
+          step="0.01"
+          name="{{ seuil_key }}"
+          value="{{ val }}"
+        />
+        {% endfor %}
+        <br />
+        {% endfor %}
+      {% else %}
+        <p>Pas de poubelle enregistré.</p>
+      {% endif %}
     </ul>
     <h3>Règles Plein</h3>
     <ul>
-      {% for seuil_plein_key, seuil_plein_value in seuils_plein.items() %}
-      <label for="{{ seuil_plein_key }}">{{ seuil_plein_key }}</label>
-      {% for val in seuil_plein_value %}
-      <input
-        type="number"
-        step="0.01"
-        name="{{ seuil_plein_key }}"
-        value="{{ val }}"
-      />
-      {% endfor %}
-      <br />
-      {% endfor %}
+      {% if seuils_plein %}
+        {% for seuil_plein_key, seuil_plein_value in seuils_plein.items() %}
+        <label for="{{ seuil_plein_key }}">{{ seuil_plein_key }}</label>
+        {% for val in seuil_plein_value %}
+        <input
+          type="number"
+          step="0.01"
+          name="{{ seuil_plein_key }}"
+          value="{{ val }}"
+        />
+        {% endfor %}
+        <br />
+        {% endfor %}
+      {% else %}
+        <p>Pas de poubelle pleine enregistré.</p>
+      {% endif %}
     </ul>
     <h3>Règles Vide</h3>
     <ul>
-      {% for seuil_vide_key, seuil_vide_value in seuils_vide.items() %}
-      <label for="{{ seuil_vide_key }}">{{ seuil_vide_key }}</label>
-      {% for val in seuil_vide_value %}
-      <input
-        type="number"
-        step="0.01"
-        name="{{ seuil_vide_key }}"
-        value="{{ val }}"
-      />
-      {% endfor %}
-      <br />
-      {% endfor %}
+      {% if seuils_vide %}
+        {% for seuil_vide_key, seuil_vide_value in seuils_vide.items() %}
+        <label for="{{ seuil_vide_key }}">{{ seuil_vide_key }}</label>
+        {% for val in seuil_vide_value %}
+        <input
+          type="number"
+          step="0.01"
+          name="{{ seuil_vide_key }}"
+          value="{{ val }}"
+        />
+        {% endfor %}
+        <br />
+        {% endfor %}
+      {% else %}
+          <p>Pas de poubelle vide enregistré.</p>
+      {% endif %}
     </ul>
     {% with messages = get_flashed_messages(with_categories=true) %} {% for
     category, message in messages %}

@@ -148,17 +148,64 @@ def extract_features(image_path):
     return width, height, float(size), int(r), int(g), int(b), float(contrast)
 
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast):
-    r_thresh = get_rule("avg_color_r", 100)
-    g_thresh = get_rule("avg_color_g", 100)
-    b_thresh = get_rule("avg_color_b", 100)
-    filesize_thresh = get_rule("filesize_kb", 500)
-    width_thresh = get_rule("width", 100)
-    height_thresh = get_rule("height", 100)
-    contrast_thresh = get_rule("contrast", 0.05)
-    if (avg_r < r_thresh and avg_g < g_thresh and avg_b < b_thresh and filesize_kb > filesize_thresh and width > width_thresh and height > height_thresh and contrast > contrast_thresh):
+    r_thresh = get_rule("avg_color_r")
+    g_thresh = get_rule("avg_color_g")
+    b_thresh = get_rule("avg_color_b")
+    filesize_thresh = get_rule("filesize_kb")
+    width_thresh = get_rule("width")
+    height_thresh = get_rule("height")
+    contrast_thresh = get_rule("contrast")
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    avg_rgb = (avg_r + avg_g + avg_b) / 3
+    for feature in ["avg_color_r", "avg_color_g", "avg_color_b", "filesize_kb", "width", "height", "contrast"]:
+        val = locals()[feature if feature != "filesize_kb" else "filesize_kb"]
+        if seuils_plein and seuils_vide:
+            max_plein = seuils_plein[feature][2]
+            min_vide = seuils_vide[feature][1]
+            if val > max_plein and val > min_vide:
+                return "Vide"
+            min_plein = seuils_plein[feature][1]
+            max_vide = seuils_vide[feature][2]
+            if val < min_plein and val < max_vide:
+                return "Pleine"
+
+    if contrast > contrast_thresh * 1.5:
         return "Pleine"
-    else:
+    if contrast < contrast_thresh * 0.5 and filesize_kb < filesize_thresh * 0.7:
         return "Vide"
+    # Contraste très bas et couleurs homogènes → souvent vide
+    if contrast < contrast_thresh * 0.7 and abs(avg_r - avg_g) < 10 and abs(avg_r - avg_b) < 10:
+        return "Vide"
+    if filesize_kb > filesize_thresh * 1.8 and avg_r < r_thresh and avg_g < g_thresh and avg_b < b_thresh:
+        return "Pleine"
+    # Image très claire, contraste faible, petite taille → vide
+    if avg_rgb > 230 and contrast < contrast_thresh and filesize_kb < filesize_thresh:
+        return "Vide"
+    if avg_r > r_thresh * 1.2 and avg_g > g_thresh * 1.2 and avg_b > b_thresh * 1.2:
+        return "Vide"
+    # Image très grande + lourde + contrastée → pleine
+    if width > width_thresh * 1.3 and height > height_thresh * 1.3 and filesize_kb > filesize_thresh * 1.5 and contrast > contrast_thresh:
+        return "Pleine"
+    
+    def distance_to_profile(profile):
+        return (
+            abs(avg_r - profile["avg_color_r"][0]) +
+            abs(avg_g - profile["avg_color_g"][0]) +
+            abs(avg_b - profile["avg_color_b"][0]) +
+            abs(filesize_kb - profile["filesize_kb"][0]) +
+            abs(width - profile["width"][0]) +
+            abs(height - profile["height"][0]) +
+            abs(contrast - profile["contrast"][0])
+        )
+
+    if seuils_plein and seuils_vide:
+        dist_plein = distance_to_profile(seuils_plein)
+        dist_vide = distance_to_profile(seuils_vide)
+        return "Pleine" if dist_plein < dist_vide else "Vide"
+    
+    return "Pleine"
+
+
 
 def get_rule(name, default=0):
     rule = ClassificationRule.query.filter_by(name=name).first()
