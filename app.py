@@ -109,28 +109,15 @@ class ClassificationRule(db.Model):
 
 with app.app_context():
     db.create_all()
-    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    if seuils_plein and seuils_vide:
-        seuils = {
-            "avg_color_r": (seuils_plein["avg_color_r"][2] + seuils_vide["avg_color_r"][2]) / 2,
-            "avg_color_g": (seuils_plein["avg_color_g"][2] + seuils_vide["avg_color_g"][2]) / 2,
-            "avg_color_b": (seuils_plein["avg_color_b"][2] + seuils_vide["avg_color_b"][2]) / 2,
-            "filesize_kb": (seuils_plein["filesize_kb"][2] + seuils_vide["filesize_kb"][2]) / 2,
-            "width": (seuils_plein["width"][2] + seuils_vide["width"][2]) / 2,
-            "height": (seuils_plein["height"][2] + seuils_vide["height"][2]) / 2,
-            "contrast": (seuils_plein["contrast"][2] + seuils_vide["contrast"][2]) / 2
-        }
-    else:
-        if not seuils:
-            seuils = {
-                "avg_color_r": 100,
-                "avg_color_g": 100,
-                "avg_color_b": 100,
-                "filesize_kb": 500,
-                "width": 100,
-                "height": 100,
-                "contrast": 0.05
-            }
+    seuils = {
+        "avg_color_r": 100,
+        "avg_color_g": 100,
+        "avg_color_b": 100,
+        "filesize_kb": 500,
+        "width": 100,
+        "height": 100,
+        "contrast": 0.05
+    }
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
             db.session.add(ClassificationRule(name=name, value=value))
@@ -168,6 +155,15 @@ def get_rule(name, default=0):
     rule = ClassificationRule.query.filter_by(name=name).first()
     return rule.value if rule else default
 
+def update_rule(name, value):
+    rule = ClassificationRule.query.filter_by(name=name).first()
+    if rule:
+        rule.value = value
+    else:
+        rule = ClassificationRule(name=name, value=value)
+        db.session.add(rule)
+    db.session.commit()
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -200,6 +196,11 @@ def index():
             )
             db.session.add(new_image)
             db.session.commit()
+            seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+            if seuils_plein and seuils_vide:
+                for rule in ClassificationRule.query.all():
+                    if rule.name in seuils_plein and rule.name in seuils_vide:
+                            update_rule(rule.name, (seuils_plein[rule.name][2] + seuils_vide[rule.name][2]) / 2)
             return redirect('/')
         else:
             return "Format de fichier non supporté", 400
