@@ -21,13 +21,13 @@
     </form>
     <h3>Règles actuelles :</h3>
     <ul>
-      {% for seuil in seuils %}
-      <label for="{{ seuil }}">{{ seuil }}</label>
-      {% for val in seuil.value %}
+      {% for seuil_key,seuil_value in seuils.items() %}
+      <label for="{{ seuil_key }}">{{ seuil_key }}</label>
+      {% for val in seuil_value %}
       <input
         type="number"
         step="0.01"
-        name="{{ seuil.name }}"
+        name="{{ seuil_key }}"
         value="{{ val }}"
       />
       {% endfor %}
@@ -36,13 +36,13 @@
     </ul>
     <h3>Règles Plein</h3>
     <ul>
-      {% for seuil_plein in seuils_plein %}
-      <label for="{{ seuil_plein.name }}">{{ seuil_plein.name }}</label>
-      {% for val in seuil_plein.value %}
+      {% for seuil_plein_key, seuil_plein_value in seuils_plein.items() %}
+      <label for="{{ seuil_plein_key }}">{{ seuil_plein_key }}</label>
+      {% for val in seuil_plein_value %}
       <input
         type="number"
         step="0.01"
-        name="{{ seuil_plein.name }}"
+        name="{{ seuil_plein_key }}"
         value="{{ val }}"
       />
       {% endfor %}
@@ -51,13 +51,13 @@
     </ul>
     <h3>Règles Vide</h3>
     <ul>
-      {% for seuil_vide in seuils_vide %}
-      <label for="{{ seuil_vide.name }}">{{ seuil_vide.name }}</label>
-      {% for val in seuil_vide.value %}
+      {% for seuil_vide_key, seuil_vide_value in seuils_vide.items() %}
+      <label for="{{ seuil_vide_key }}">{{ seuil_vide_key }}</label>
+      {% for val in seuil_vide_value %}
       <input
         type="number"
         step="0.01"
-        name="{{ seuil_vide.name }}"
+        name="{{ seuil_vide_key }}"
         value="{{ val }}"
       />
       {% endfor %}
