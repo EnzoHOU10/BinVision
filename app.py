@@ -80,13 +80,22 @@ def calculate_seuils_from_db():
     if cpt > 0:
         for rule in rules:
                 seuils[rule.name][0] = seuils[rule.name][0] / cpt
-    if cpt_plein > 0:
-        for rule in rules:
+        if cpt_plein > 0 and cpt_vide > 0:
+            for rule in rules:
+                    seuils_plein[rule.name][0] = seuils_plein[rule.name][0] / cpt_plein
+            for rule in rules:
+                    seuils_vide[rule.name][0] = seuils_vide[rule.name][0] / cpt_vide
+            return seuils, seuils_plein, seuils_vide
+        elif cpt_plein > 0 and cpt_vide == 0:
+            for rule in rules:
                 seuils_plein[rule.name][0] = seuils_plein[rule.name][0] / cpt_plein
-    if cpt_vide > 0:
-        for rule in rules:
+            return seuils, seuils_plein, None
+        else:
+            for rule in rules:
                 seuils_vide[rule.name][0] = seuils_vide[rule.name][0] / cpt_vide
-    return seuils, seuils_plein, seuils_vide
+            return seuils, None, seuils_vide
+    else:
+        return None, None, None
 
 
 
@@ -180,6 +189,7 @@ def index():
             width, height, size, r, g, b, contrast = extract_features(filepath)
             auto_annotation = classify_image(r, size, g, b, width, height, contrast)
             annotation = request.form.get('annotation')
+            
             if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
                 annotation = auto_annotation
 
