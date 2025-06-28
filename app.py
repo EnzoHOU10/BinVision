@@ -28,7 +28,9 @@ def calculate_seuils_from_db():
         "filesize_kb": [0,900,0],
         "width": [0,900,0],
         "height": [0,900,0],
-        "contrast": [0,900,0]
+        "contrast": [0,900,0],
+        "saturation": [0,900,0],
+        "luminance": [0,900,0]
     }
     seuils_plein = {
         "avg_color_r": [0,900,0],
@@ -37,7 +39,9 @@ def calculate_seuils_from_db():
         "filesize_kb": [0,900,0],
         "width": [0,900,0],
         "height": [0,900,0],
-        "contrast": [0,900,0]
+        "contrast": [0,900,0],
+        "saturation": [0,900,0],
+        "luminance": [0,900,0]
     }
     seuils_vide = {
         "avg_color_r": [0,900,0],
@@ -46,7 +50,9 @@ def calculate_seuils_from_db():
         "filesize_kb": [0,900,0],
         "width": [0,900,0],
         "height": [0,900,0],
-        "contrast": [0,900,0]
+        "contrast": [0,900,0],
+        "saturation": [0,900,0],
+        "luminance": [0,900,0]
     }
     rules = ClassificationRule.query.all()
     images = TrashImage.query.all()
@@ -102,6 +108,7 @@ def calculate_seuils_from_db():
 class TrashImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(150), nullable=False)
+    link = db.Column(db.String(200), nullable=False)
     annotation = db.Column(db.String(10), nullable=True)
     width = db.Column(db.Integer)
     height = db.Column(db.Integer)
@@ -110,6 +117,9 @@ class TrashImage(db.Model):
     avg_color_g = db.Column(db.Integer)
     avg_color_b = db.Column(db.Integer)
     contrast = db.Column(db.Integer)
+    saturation = db.Column(db.Float)
+    luminance = db.Column(db.Float)
+
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -125,7 +135,9 @@ with app.app_context():
         "filesize_kb": 500,
         "width": 100,
         "height": 100,
-        "contrast": 0.05
+        "contrast": 0.05,
+        "saturation": 0.05,
+        "luminance": 0.05
     }
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
@@ -145,9 +157,11 @@ def extract_features(image_path):
     gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
     edges = cv2.Canny(gray, 100, 200)
     contrast = edges.sum() / (width * height)
-    return width, height, float(size), int(r), int(g), int(b), float(contrast)
+    saturation = np.sqrt((r - g) ** 2 + (r - b) ** 2 + (g - b) ** 2)
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance)
 
-def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast):
+def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance):
     r_thresh = get_rule("avg_color_r")
     g_thresh = get_rule("avg_color_g")
     b_thresh = get_rule("avg_color_b")
@@ -155,19 +169,10 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast):
     width_thresh = get_rule("width")
     height_thresh = get_rule("height")
     contrast_thresh = get_rule("contrast")
+    saturation_thresh = get_rule("saturation")
+    luminance_thresh = get_rule("luminance")
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     avg_rgb = (avg_r + avg_g + avg_b) / 3
-    for feature in ["avg_color_r", "avg_color_g", "avg_color_b", "filesize_kb", "width", "height", "contrast"]:
-        val = locals()[feature if feature != "filesize_kb" else "filesize_kb"]
-        if seuils_plein and seuils_vide:
-            max_plein = seuils_plein[feature][2]
-            min_vide = seuils_vide[feature][1]
-            if val > max_plein and val > min_vide:
-                return "Vide"
-            min_plein = seuils_plein[feature][1]
-            max_vide = seuils_vide[feature][2]
-            if val < min_plein and val < max_vide:
-                return "Pleine"
 
     if contrast > contrast_thresh * 1.5:
         return "Pleine"
@@ -195,7 +200,9 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast):
             abs(filesize_kb - profile["filesize_kb"][0]) +
             abs(width - profile["width"][0]) +
             abs(height - profile["height"][0]) +
-            abs(contrast - profile["contrast"][0])
+            abs(contrast - profile["contrast"][0]) +
+            abs(saturation - profile["saturation"][0]) +
+            abs(luminance - profile["luminance"][0])
         )
 
     if seuils_plein and seuils_vide:
@@ -232,8 +239,9 @@ def index():
                 filename = img.filename
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 img.save(filepath)
-                width, height, size, r, g, b, contrast = extract_features(filepath)
-                auto_annotation = classify_image(r, size, g, b, width, height, contrast)
+                link = filepath
+                width, height, size, r, g, b, contrast, saturation, luminance = extract_features(filepath)
+                auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance)
                 annotation = request.form.get('annotation')
                 
                 if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
@@ -241,6 +249,7 @@ def index():
 
                 new_image = TrashImage(
                     filename=filename,
+                    link=link,
                     annotation=annotation.capitalize(),  # Majuscule
                     width=width,
                     height=height,
@@ -248,7 +257,9 @@ def index():
                     avg_color_r=r,
                     avg_color_g=g,
                     avg_color_b=b,
-                    contrast=contrast
+                    contrast=contrast,
+                    saturation=saturation,
+                    luminance=luminance
                 )
                 db.session.add(new_image)
                 db.session.commit()
@@ -256,7 +267,7 @@ def index():
                 if seuils_plein and seuils_vide:
                     for rule in ClassificationRule.query.all():
                         if rule.name in seuils_plein and rule.name in seuils_vide:
-                                update_rule(rule.name, (seuils_plein[rule.name][2] + seuils_vide[rule.name][2]) / 2)     
+                                update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
             else:
                 return "Format de fichier non supporté", 400
         return redirect('/')
@@ -300,7 +311,6 @@ def rules():
                 rule = ClassificationRule(name=name, value=value)
                 db.session.add(rule)
         db.session.commit()
-        flash("Règles mises à jour avec succès.", "success")
         return redirect('/rules')
     
     rules = ClassificationRule.query.all()
