@@ -12,11 +12,14 @@
       body {
         min-height: 100vh;
         display: flex;
+        background-color: #000f00ee;
+        color: white;
       }
       .sidebar {
         width: 220px;
-        background-color: #f8f9fa;
+        background-color: #000000;
         padding: 20px;
+        color: white;
       }
       .sidebar h2 {
         font-size: 1.4rem;
@@ -24,15 +27,15 @@
       .sidebar a {
         display: block;
         padding: 10px 0;
-        color: #000;
+        color: #ffffff;
         text-decoration: none;
       }
       .sidebar a:hover {
         font-weight: bold;
       }
       .content {
-        flex: 1;
-        padding: 30px;
+        flex: 1; 
+        margin-inline: 100px;       
       }
       #preview {
         width: 100%;
@@ -42,31 +45,120 @@
         justify-content: center;
         overflow: hidden;
       }
-      #classification {
+      #preview img {
+        height: 500px;
+        object-fit: contain;
+    
+      }
+      .buttonrow {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .classification-buttons {
         display: flex;
         justify-content: center;
         gap: 10px;
         margin-top: 20px;
-      }
-      #preview img {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
+        margin-bottom: 20px;
       }
       h3 {
+        margin-top: 80px;
         margin-bottom: 100px;
-        margin-top: 50px;
         text-align: center;
       }
       .details {
         display: none;
+      }
+      .lightbox-container {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: transparent;
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+      .lightbox-content {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 90%;
+        max-height: 90%;
+        position: relative;
+      }
+      .lightbox-img {
+        max-width: 100%;
+        max-height: 80vh;
+        display: block;
+        margin: auto;
+      }
+      .lightbox-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+      }
+      .tableau {
+        height: 700px;
+        overflow-y: auto;
+      }
+      .margin-top {
+        margin-top: 1rem;
+      }
+      .btn{
+        margin: 5px;
+        color: white;
+        background-color: transparent;
+        border: 1px solid #ffffff;
+        transition: background-color 0.3s, color 0.3s;
+      }
+      .btn:hover {
+        background-color: #ffffff;
+        color: #000000;
+      }
+      #redbtn{
+        color: white;
+        background-color: transparent;
+        border: 1px solid red;
+        transition: background-color 0.3s, color 0.3s;
+      }
+      #redbtn:hover {
+        background-color: rgba(255, 0, 0, 0.1);
+        color: red;
+        filter:drop-shadow(0 0 10px rgba(255, 0, 0, 1));
+      }
+      #greenbtn{
+        color: white;
+        background-color: transparent;
+        border: 1px solid green;
+        transition: background-color 0.3s, color 0.3s;
+      }
+      #greenbtn:hover {
+        background-color: rgba(0, 128, 0, 0.1);
+        color: green;
+        filter:drop-shadow(0 0 10px rgba(0, 128, 0, 1));
+      }
+      #whitebtn{
+        margin-left:20px;
+        color: white;
+        background-color: transparent;
+        border: 1px solid white;
+        transition: background-color 0.3s, color 0.3s;
+      }
+      #whitebtn:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+        filter:drop-shadow(0 0 10px rgba(255, 255, 255, 1));
       }
     </style>
   </head>
   <body>
     <div class="sidebar">
       <h2>BinVision</h2>
-      <br/>
+      <br />
       <a href="/home">Home</a>
       <a href="/"><strong>Settings</strong></a>
       <a href="/dashboard">Dashboard</a>
@@ -75,8 +167,8 @@
     <div class="content">
       <div class="register">
         <h3>Augmenter la précision de l'IA</h3>
-        <div class="mb-3 d-flex gap-2">
-          <button class="btn btn-primary" onclick="document.getElementById('input').click()">Selectionner un/des images</button>
+        <div class="buttonrow">
+          <button class="btn" onclick="document.getElementById('input').click()">Selectionner un/des images</button>
         </div>
 
         <form method="POST" id="Form" enctype="multipart/form-data">
@@ -91,22 +183,23 @@
           />
 
           <div id="preview">🚛</div>
-          <div class="d-flex gap-2 mb-3" id="classification">
-            <button type="button" class="btn btn-success" onclick="annotation('Pleine')">Pleine</button>
-            <button type="button" class="btn btn-danger" onclick="annotation('Vide')">Vide</button>
-            <button type="button" class="btn btn-warning" onclick="annotation('Auto')">Auto</button>
+          <div class="classification-buttons" id="classification">
+            <button type="button" class="btn" id="redbtn" onclick="annotation('Pleine')">Pleine</button>
+            <button type="button" class="btn" id="greenbtn" onclick="annotation('Vide')">Vide</button>
+            <button type="button" class="btn" id="whitebtn" onclick="annotation('Auto')">Auto</button>
           </div>
         </form>
 
-        <div class="mt-4">
-          <p class="mt-2 text-muted">L’IA est basée sur n image</p>
-          <button class="btn btn-info" onclick="showDetails()">Voir</button>
+        <div class="margin-top">
+          <p class="margin-top text-muted">L’IA est basée sur n image</p>
+          <button class="btn" onclick="showDetails()">Voir</button>
         </div>
       </div>
+
       <div class="details">
-        <h4 class="mt-5">Images enregistrées :</h4>
+        <h3>Images enregistrées :</h4>
         <div class="table-responsive">
-          <table class="table table-bordered table-hover align-middle" style="height: 700px; overflow-y: auto;">
+          <table class="table table-bordered table-hover align-middle tableau">
             <thead class="table-light">
               <tr>
                 <th>Image</th>
@@ -144,23 +237,23 @@
               {% endfor %}
             </tbody>
           </table>
-          <div class="text-center mt-3">
-            <button class="btn btn-outline-primary me-2" onclick="prevPage()">Précédent</button>
+          <div class="text-center margin-top">
+            <button class="btn" onclick="prevPage()">Précédent</button>
             <span id="pageInfo">Page 1</span>
-            <button class="btn btn-outline-primary ms-2" onclick="nextPage()">Suivant</button>
+            <button class="btn" onclick="nextPage()">Suivant</button>
           </div>
         </div>
-        <div class="text-center mt-4">
-          <button class="btn btn-secondary" onclick="hideDetails()">Retour</button>
-        </div>
-      </div>
-      <div id="lightbox" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background-color:transparent; z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:white; padding:20px; border-radius:8px; max-width:90%; max-height:90%; position:relative;">
-          <button onclick="closeLightbox()" class="btn btn-danger" style="position:absolute; top:10px; right:10px;">X</button>
-          <img id="lightbox-img" src="" style="max-width:100%; max-height:80vh; display:block; margin:auto;" />
+        <div class="text-center margin-top">
+          <button class="btn" onclick="hideDetails()">Retour</button>
         </div>
       </div>
 
+      <div id="lightbox" class="lightbox-container">
+        <div class="lightbox-content">
+          <button onclick="closeLightbox()" class="btn">X</button>
+          <img id="lightbox-img" src="" class="lightbox-img" />
+        </div>
+      </div>
     </div>
 
     <script>
@@ -201,14 +294,17 @@
           })
           .catch((err) => alert("Erreur lors de l'envoi : " + err.message));
       }
+
       function showDetails() {
         document.querySelector('.register').style.display = 'none';
         document.querySelector('.details').style.display = 'block';
       }
+
       function hideDetails() {
         document.querySelector('.details').style.display = 'none';
         document.querySelector('.register').style.display = 'block';
       }
+
       // Pagination
       const rowsPerPage = 5;
       let currentPage = 1;
@@ -221,7 +317,7 @@
       });
 
       function showPage(page) {
-        const totalPages = Math.ceil(rows.length / rowsPerPage); // total de pages
+        const totalPages = Math.ceil(rows.length / rowsPerPage);
         const start = (page - 1) * rowsPerPage;
         const end = start + rowsPerPage;
 
@@ -231,7 +327,6 @@
 
         document.getElementById('pageInfo').textContent = `Page ${page}/${totalPages}`;
       }
-
 
       function nextPage() {
         if ((currentPage * rowsPerPage) < rows.length) {
@@ -246,6 +341,7 @@
           showPage(currentPage);
         }
       }
+
       function showImage(src) {
         const lightbox = document.getElementById('lightbox');
         const img = document.getElementById('lightbox-img');
@@ -259,7 +355,6 @@
         img.src = '';
         lightbox.style.display = 'none';
       }
-
     </script>
   </body>
 </html>
