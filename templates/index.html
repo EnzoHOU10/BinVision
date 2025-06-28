@@ -2,84 +2,110 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <title>BinVision</title>
+    <title>BinVision - Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   </head>
   <body>
-    <h1>Upload une image</h1>
-    <a href="/rules">🔧 Configurer les règles de classification</a>
-    <form method="POST" id="Form" enctype="multipart/form-data">
-      <input
-        type="file"
-        id="input"
-        name="image"
-        accept=".png,.jpg,.jpeg"
-        multiple
-        required
-      />
-      <div id="preview"></div>
-      <p>Choisir une annotation :</p>
-      <div id="annotation-buttons" style="display: flex; gap: 10px; margin-bottom: 10px">
-        <button type="button" onclick="annotation('Pleine')">Pleine</button>
-        <button type="button" onclick="annotation('Vide')">Vide</button>
-        <button type="button" onclick="annotation('Auto')">Auto</button>
+    <div class="sidebar">
+      <h2>BinVision</h2>
+      <br/>
+      <a href="/home">Home</a>
+      <a href="/"><strong>Settings</strong></a>
+      <a href="/dashboard">Dashboard</a>
+    </div>
+
+    <div class="content">
+      <div class="register">
+        <h3>Augmenter la précision de l'IA</h3>
+        <div class="mb-3 d-flex gap-2">
+          <button class="btn btn-success" onclick="document.getElementById('input').click()">Sélectionner un/des images</button>
+        </div>
+
+        <form method="POST" id="Form" enctype="multipart/form-data">
+          <input
+            type="file"
+            id="input"
+            name="image"
+            accept=".png,.jpg,.jpeg"
+            multiple
+            required
+            style="display: none"
+          />
+
+          <div id="preview">🚛</div>
+          <div class="d-flex gap-2 mb-3" id="classification">
+            <button type="button" class="btn btn-danger" onclick="annotation('Pleine')">Pleine</button>
+            <button type="button" class="btn btn-secondary" onclick="annotation('Vide')">Vide</button>
+            <button type="button" class="btn btn-warning" onclick="annotation('Auto')">Auto</button>
+          </div>
+        </form>
+
+        <div class="mt-4">
+          <p class="mt-2 text-muted">L’IA est basée sur n image</p>
+          <button class="btn btn-success" onclick="showDetails()">Voir</button>
+        </div>
       </div>
-    </form>
+      <div class="details">
+        <h4 class="mt-5">Images enregistrées :</h4>
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover align-middle" style="height: 700px; overflow-y: auto;">
+            <thead class="table-light">
+              <tr>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Link</th>
+                <th>Annotation</th>
+                <th>Dimensions</th>
+                <th>Size (KB)</th>
+                <th>RGB</th>
+                <th>Contrast</th>
+                <th>Saturation</th>
+                <th>Luminance</th>
+              </tr>
+            </thead>
+            <tbody id="tableaudimage">
+              {% for img in images %}
+              <tr onclick="showImage('{{ url_for('uploaded_file', filename=img.filename) }}')">
+                <td>
+                  <img src="{{ url_for('uploaded_file', filename=img.filename) }}" width="80" alt="Image"/>
+                </td>
+                <td>{{ img.filename }}</td>
+                <td>{{ img.link }}</td>
+                <td>{{ img.annotation }}</td>
+                <td>{{ img.width }}x{{ img.height }}</td>
+                <td>{{ img.filesize_kb }}</td>
+                <td>({{ img.avg_color_r }}, {{ img.avg_color_g }}, {{ img.avg_color_b }})</td>
+                <td>{{ img.contrast }}</td>
+                <td>{{ img.saturation }}</td>
+                <td>{{ img.luminance }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="text-center mt-3">
+            <button class="btn btn-outline-danger me-2" onclick="prevPage()">Précédent</button>
+            <span id="pageInfo">Page 1</span>
+            <button class="btn btn-outline-danger ms-2" onclick="nextPage()">Suivant</button>
+          </div>
+        </div>
+        <div class="text-center mt-4">
+          <button class="btn btn-secondary" onclick="hideDetails()">Retour</button>
+        </div>
+      </div>
 
-    <h2>Images enregistrées :</h2>
-    <ul>
-      {% for img in images %}
-      <li>
-        <img
-          src="{{ url_for('uploaded_file', filename=img.filename) }}"
-          width="100"
-        /><br />
-        {{ img.filename }} – {{ img.annotation }}<br />
-        Taille: {{ img.filesize_kb }} KB – Dimensions: {{ img.width }}x{{
-        img.height }} – Moy. RGB: ({{ img.avg_color_r }}, {{ img.avg_color_g }},
-        {{ img.avg_color_b }})
-      </li>
-      {% endfor %}
-    </ul>
+      <div id="lightbox" class="lightbox">
+        <div class="lightbox-content">
+          <button onclick="closeLightbox()" class="btn btn-danger close-btn">X</button>
+          <img id="lightbox-img" src="" />
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
   </body>
-  <script>
-    let files = [];
-    let currentIndex = 0;
-
-    document.getElementById('input').addEventListener("change", function (e) {
-      files = Array.from(e.target.files);
-      currentIndex = 0;
-      showCurrentImage();
-    });
-
-    function showCurrentImage() {
-      const preview = document.getElementById("preview");
-      preview.innerHTML = '';
-      if (currentIndex < files.length) {
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(files[currentIndex]);
-        img.style.maxWidth = "200px";
-        img.style.maxHeight = "200px";
-        preview.appendChild(img);
-      } else {
-        location.reload();
-      }
-    }
-
-    function annotation(annotation) {
-      if (currentIndex >= files.length) return;
-      const formData = new FormData();
-      formData.append("image", files[currentIndex]);
-      formData.append("annotation", annotation);
-      fetch("/", {
-        method: "POST",
-        body: formData,
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Erreur serveur");
-          currentIndex++;
-          showCurrentImage();
-        })
-        .catch((err) => alert("Erreur lors de l'envoi : " + err.message));
-    }
-  </script>
 </html>
