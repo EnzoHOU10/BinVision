@@ -336,6 +336,7 @@ socketio = SocketIO(app)
 @socketio.on('connect')
 def handle_connect():
     print("Client connecté")
+    send_marker_update()
 
 def send_marker_update():
     socketio.emit('update_marker', {'id': 'tour_eiffel', 'lat': 48.8584, 'lng': 2.2945})
