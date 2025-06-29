@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import io
 import base64
 from flask import send_from_directory
+from flask_socketio import SocketIO, emit
+import random
+import time, threading
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -324,5 +327,19 @@ def rules():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/home', methods=['GET', 'POST'])
+def home():
+    return render_template('home.html')
+
+socketio = SocketIO(app)
+
+@socketio.on('connect')
+def handle_connect():
+    print("Client connecté")
+
+def send_marker_update():
+    socketio.emit('update_marker', {'id': 'tour_eiffel', 'lat': 48.8584, 'lng': 2.2945})
+
 if __name__ == '__main__':
+    socketio.run(app, debug=True)
     app.run(debug=True)
