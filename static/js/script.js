@@ -95,3 +95,12 @@ function prevPage() {
   }
 }
 
+function showSeuils() {
+  document.querySelector(".seuils").style.display = "block";
+  document.querySelector(".content").style.display = "none";
+}
+
+function hideSeuils() {
+  document.querySelector(".seuils").style.display = "none";
+  document.querySelector(".content").style.display = "block";
+}

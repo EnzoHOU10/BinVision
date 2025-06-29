@@ -329,7 +329,24 @@ def uploaded_file(filename):
 
 @app.route('/home', methods=['GET', 'POST'])
 def home():
-    return render_template('home.html')
+    if request.method == 'POST':
+        for name in request.form:
+            value = float(request.form[name])
+            rule = ClassificationRule.query.filter_by(name=name).first()
+            if rule:
+                rule.value = value
+            else:
+                rule = ClassificationRule(name=name, value=value)
+                db.session.add(rule)
+        db.session.commit()
+        return redirect('/rules')
+    
+    rules = ClassificationRule.query.all()
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    print("Seuils:", seuils)
+    print("Seuils Plein:", seuils_plein)
+    print("Seuils Vide:", seuils_vide)
+    return render_template('home.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide)
 
 socketio = SocketIO(app)
 
