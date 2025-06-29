@@ -33,7 +33,8 @@ def calculate_seuils_from_db():
         "height": [0,900,0],
         "contrast": [0,900,0],
         "saturation": [0,900,0],
-        "luminance": [0,900,0]
+        "luminance": [0,900,0],
+        "edge_density": [0,900,0]
     }
     seuils_plein = {
         "avg_color_r": [0,900,0],
@@ -44,7 +45,8 @@ def calculate_seuils_from_db():
         "height": [0,900,0],
         "contrast": [0,900,0],
         "saturation": [0,900,0],
-        "luminance": [0,900,0]
+        "luminance": [0,900,0],
+        "edge_density": [0,900,0]
     }
     seuils_vide = {
         "avg_color_r": [0,900,0],
@@ -55,7 +57,8 @@ def calculate_seuils_from_db():
         "height": [0,900,0],
         "contrast": [0,900,0],
         "saturation": [0,900,0],
-        "luminance": [0,900,0]
+        "luminance": [0,900,0],
+        "edge_density": [0,900,0]
     }
     rules = ClassificationRule.query.all()
     images = TrashImage.query.all()
@@ -122,6 +125,7 @@ class TrashImage(db.Model):
     contrast = db.Column(db.Integer)
     saturation = db.Column(db.Float)
     luminance = db.Column(db.Float)
+    edge_density = db.Column(db.Float)
 
 
 class ClassificationRule(db.Model):
@@ -140,7 +144,8 @@ with app.app_context():
         "height": 100,
         "contrast": 0.05,
         "saturation": 0.05,
-        "luminance": 0.05
+        "luminance": 0.05,
+        "edge_density": 0.05
     }
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
@@ -158,13 +163,16 @@ def extract_features(image_path):
     np_img = np.array(img)
     r, g, b = np_img[:, :, 0].mean(), np_img[:, :, 1].mean(), np_img[:, :, 2].mean()
     gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
+    luminance_array = 0.2126 * np_img[:, :, 0] + 0.7152 * np_img[:, :, 1] + 0.0722 * np_img[:, :, 2]
+    luminance = luminance_array.mean()
+    contrast = gray.max() - gray.min()
+    #Contours
     edges = cv2.Canny(gray, 100, 200)
-    contrast = edges.sum() / (width * height)
+    edge_density = np.sum(edges) / edges.size
     saturation = np.sqrt((r - g) ** 2 + (r - b) ** 2 + (g - b) ** 2)
-    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-    return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance)
+    return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance), float(edge_density)
 
-def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance):
+def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance, edge_density):
     r_thresh = get_rule("avg_color_r")
     g_thresh = get_rule("avg_color_g")
     b_thresh = get_rule("avg_color_b")
@@ -174,25 +182,18 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
     contrast_thresh = get_rule("contrast")
     saturation_thresh = get_rule("saturation")
     luminance_thresh = get_rule("luminance")
+    edge_density_thresh = get_rule("edge_density")
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    avg_rgb = (avg_r + avg_g + avg_b) / 3
 
-    if contrast > contrast_thresh * 1.5:
+    if edge_density > edge_density_thresh * 1.3:
         return "Pleine"
-    if contrast < contrast_thresh * 0.5 and filesize_kb < filesize_thresh * 0.7:
+    if contrast < contrast_thresh * 0.6 and saturation < saturation_thresh * 0.6:
         return "Vide"
-    # Contraste très bas et couleurs homogènes → souvent vide
-    if contrast < contrast_thresh * 0.7 and abs(avg_r - avg_g) < 10 and abs(avg_r - avg_b) < 10:
-        return "Vide"
-    if filesize_kb > filesize_thresh * 1.8 and avg_r < r_thresh and avg_g < g_thresh and avg_b < b_thresh:
+    if filesize_kb > filesize_thresh * 1.5 and contrast > contrast_thresh:
         return "Pleine"
-    # Image très claire, contraste faible, petite taille → vide
-    if avg_rgb > 230 and contrast < contrast_thresh and filesize_kb < filesize_thresh:
+    if luminance > 230 and contrast < contrast_thresh * 0.7 and edge_density < edge_density_thresh * 0.8:
         return "Vide"
-    if avg_r > r_thresh * 1.2 and avg_g > g_thresh * 1.2 and avg_b > b_thresh * 1.2:
-        return "Vide"
-    # Image très grande + lourde + contrastée → pleine
-    if width > width_thresh * 1.3 and height > height_thresh * 1.3 and filesize_kb > filesize_thresh * 1.5 and contrast > contrast_thresh:
+    if width > width_thresh * 1.2 and height > height_thresh * 1.2 and filesize_kb > filesize_thresh * 1.3:
         return "Pleine"
     
     def distance_to_profile(profile):
@@ -205,7 +206,8 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
             abs(height - profile["height"][0]) +
             abs(contrast - profile["contrast"][0]) +
             abs(saturation - profile["saturation"][0]) +
-            abs(luminance - profile["luminance"][0])
+            abs(luminance - profile["luminance"][0]) +
+            abs(edge_density - profile["edge_density"][0])
         )
 
     if seuils_plein and seuils_vide:
@@ -243,8 +245,8 @@ def index():
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 img.save(filepath)
                 link = filepath
-                width, height, size, r, g, b, contrast, saturation, luminance = extract_features(filepath)
-                auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance)
+                width, height, size, r, g, b, contrast, saturation, luminance, edge_density = extract_features(filepath)
+                auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density)
                 annotation = request.form.get('annotation')
                 
                 if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
@@ -262,7 +264,8 @@ def index():
                     avg_color_b=b,
                     contrast=contrast,
                     saturation=saturation,
-                    luminance=luminance
+                    luminance=luminance,
+                    edge_density=edge_density
                 )
                 db.session.add(new_image)
                 db.session.commit()
