@@ -167,13 +167,9 @@ def extract_features(image_path):
     luminance_array = 0.2126 * np_img[:, :, 0] + 0.7152 * np_img[:, :, 1] + 0.0722 * np_img[:, :, 2]
     luminance = luminance_array.mean()
     contrast = gray.max() - gray.min()
-    #Contours
     edges = cv2.Canny(gray, 100, 200)
     edge_density = np.sum(edges > 0) / (width * height)
     saturation = np.sqrt((r - g) ** 2 + (r - b) ** 2 + (g - b) ** 2)
-    print(f"Image: {image_path}, Size: {size} KB, Width: {width}, Height: {height}, "
-          f"Avg Color (R,G,B): ({r}, {g}, {b}), Contrast: {contrast}, Saturation: {saturation}, "
-          f"Luminance: {luminance}, Edge Density: {edge_density}")
     return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance), float(edge_density)
 
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance, edge_density):
@@ -236,56 +232,56 @@ def update_rule(name, value):
         db.session.add(rule)
     db.session.commit()
 
+def add_img(img):
+    if img and allowed_file(img.filename):
+        filename = img.filename
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        img.save(filepath)
+        link = filepath
+        width, height, size, r, g, b, contrast, saturation, luminance, edge_density = extract_features(filepath)
+        auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density)
+        annotation = request.form.get('annotation')
+        
 
+        if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
+            is_auto = annotation
+            annotation = auto_annotation
+        else:
+            is_auto = 'Manual'
+
+        new_image = TrashImage(
+            filename=filename,
+            link=link,
+            annotation=annotation.capitalize(),  # Majuscule
+            width=width,
+            height=height,
+            filesize_kb=round(size, 2),
+            avg_color_r=r,
+            avg_color_g=g,
+            avg_color_b=b,
+            contrast=contrast,
+            saturation=saturation,
+            luminance=luminance,
+            edge_density=edge_density,
+            type=is_auto
+        )
+        db.session.add(new_image)
+        db.session.commit()
+        
+        seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+        if seuils_plein and seuils_vide:
+            for rule in ClassificationRule.query.all():
+                if rule.name in seuils_plein and rule.name in seuils_vide:
+                    update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
+    else:
+        return "Format de fichier non supporté", 400
+    
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
         images = request.files.getlist('image')
-        print("Images reçues:", images)
         for img in images:
-            print("Traitement de l'image:", img)
-            if img and allowed_file(img.filename):
-                filename = img.filename
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                img.save(filepath)
-                link = filepath
-                width, height, size, r, g, b, contrast, saturation, luminance, edge_density = extract_features(filepath)
-                auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density)
-                annotation = request.form.get('annotation')
-                
-
-                if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
-                    is_auto = annotation
-                    annotation = auto_annotation
-                else:
-                    is_auto = 'Manual'
-
-                new_image = TrashImage(
-                    filename=filename,
-                    link=link,
-                    annotation=annotation.capitalize(),  # Majuscule
-                    width=width,
-                    height=height,
-                    filesize_kb=round(size, 2),
-                    avg_color_r=r,
-                    avg_color_g=g,
-                    avg_color_b=b,
-                    contrast=contrast,
-                    saturation=saturation,
-                    luminance=luminance,
-                    edge_density=edge_density,
-                    type=is_auto
-                )
-                db.session.add(new_image)
-                db.session.commit()
-                
-                seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-                if seuils_plein and seuils_vide:
-                    for rule in ClassificationRule.query.all():
-                        if rule.name in seuils_plein and rule.name in seuils_vide:
-                            update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
-            else:
-                return "Format de fichier non supporté", 400
+            add_img(img)
         return redirect('/')
     
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
@@ -360,6 +356,17 @@ def home():
     print("Seuils Plein:", seuils_plein)
     print("Seuils Vide:", seuils_vide)
     return render_template('home.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide)
+
+@app.route('/predict', methods=['GET', 'POST'])
+def user():
+    if request.method == 'POST':
+        images = request.files.getlist('image')
+        for img in images:
+            add_img(img)
+        return redirect('/predict')
+    
+    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
+    return render_template('user.html', images=images)
 
 socketio = SocketIO(app)
 

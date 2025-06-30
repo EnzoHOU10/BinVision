@@ -16,6 +16,7 @@
       <div id="start"><img src="../static/logo/logoname.ico" alt="Chargement..." width="60%" id="startlogo" /></div>
       <br />
       <a href="/home">Home</a>
+      <a href="/predict">Pleine/Vide</a>
       <a href="/"><strong>Settings</strong></a>
       <a href="/dashboard">Dashboard</a>
       <div id="end">
@@ -47,7 +48,6 @@
           <div class="classification-buttons" id="classification">
             <button type="button" class="btn" id="redbtn" onclick="annotation('Pleine')">Pleine</button>
             <button type="button" class="btn" id="greenbtn" onclick="annotation('Vide')">Vide</button>
-            <button type="button" class="btn" id="whitebtn" onclick="annotation('Auto')">Auto</button>
           </div>
         </form>
 
@@ -79,26 +79,28 @@
             </thead>
             <tbody id="tableaudimage">
               {% for img in images %}
-              <tr onclick="showImage('{{ url_for('uploaded_file', filename=img.filename) }}')">
-                <td>
-                  <img
-                    src="{{ url_for('uploaded_file', filename=img.filename) }}"
-                    width="80"
-                    alt="Image"
-                  />
-                </td>
-                <td>{{ img.filename }}</td>
-                <td>{{ img.link }}</td>
-                <td>{{ img.date }}</td>
-                <td>{{ img.annotation }}</td>
-                <td>{{ img.width }}x{{ img.height }}</td>
-                <td>{{ img.filesize_kb }}</td>
-                <td>({{ img.avg_color_r }}, {{ img.avg_color_g }}, {{ img.avg_color_b }})</td>
-                <td>{{ img.contrast }}</td>
-                <td>{{ img.saturation }}</td>
-                <td>{{ img.luminance }}</td>
-                <td>{{ img.type }}</td>
-              </tr>
+                {% if img.type != 'Auto' %}
+                  <tr onclick="showImage('{{ url_for('uploaded_file', filename=img.filename) }}')">
+                    <td>
+                      <img
+                        src="{{ url_for('uploaded_file', filename=img.filename) }}"
+                        width="80"
+                        alt="Image"
+                      />
+                    </td>
+                    <td>{{ img.filename }}</td>
+                    <td>{{ img.link }}</td>
+                    <td>{{ img.date }}</td>
+                    <td>{{ img.annotation }}</td>
+                    <td>{{ img.width }}x{{ img.height }}</td>
+                    <td>{{ img.filesize_kb }}</td>
+                    <td>({{ img.avg_color_r }}, {{ img.avg_color_g }}, {{ img.avg_color_b }})</td>
+                    <td>{{ img.contrast }}</td>
+                    <td>{{ img.saturation }}</td>
+                    <td>{{ img.luminance }}</td>
+                    <td>{{ img.type }}</td>
+                  </tr>
+                {% endif %}
               {% endfor %}
             </tbody>
           </table>

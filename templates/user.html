@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BinVision - Pleine/Vide</title>
+    <link rel="icon" href="../static/logo/logo.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../static/css/style.css" />
+  </head>
+  <body>
+    <div class="sidebar">
+      <div id="start"><img src="../static/logo/logoname.ico" alt="Chargement..." width="60%" id="startlogo" /></div>
+      <br />
+      <a href="/home">Home</a>
+      <a href="/predict"><strong>Pleine/Vide</strong></a>
+      <a href="/">Settings</a>
+      <a href="/dashboard">Dashboard</a>
+      <div id="end">
+        <p>All rights reserved</p>
+        <p>© 2024 BinVision</p>
+        <p>Version 1.0.0</p>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="register">
+        <h3>Augmenter la précision de l'IA</h3>
+        <div class="buttonrow">
+          <button class="btn" onclick="document.getElementById('input').click()">Selectionner un/des images</button>
+        </div>
+
+        <form method="POST" id="Form" enctype="multipart/form-data">
+          <input
+            type="file"
+            id="input"
+            name="image"
+            accept=".png,.jpg,.jpeg"
+            multiple
+            required
+            style="display: none"
+          />
+
+          <div id="preview"></div>
+          <div class="classification-buttons" id="classification">
+            <button type="button" class="btn" id="whitebtn" onclick="annotation('Auto')">Auto</button>
+          </div>
+        </form>
+
+        <div class="margin-top">
+          <p class="margin-top text-muted">L’IA est basée sur n image</p>
+          <button class="btn" onclick="showDetails()">Voir</button>
+        </div>
+      </div>
+
+      <div class="details">
+        <h3>Images enregistrées :</h4>
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover align-middle tableau">
+            <thead class="table-light">
+              <tr>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Link</th>
+                <th>Date</th>
+                <th>Annotation</th>
+                <th>Dimensions</th>
+                <th>Size (KB)</th>
+                <th>RGB</th>
+                <th>Contrast</th>
+                <th>Saturation</th>
+                <th>Luminance</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody id="tableaudimage">
+              {% for img in images %}
+                {% if img.type == 'Auto' %}
+                    <tr onclick="showImage('{{ url_for('uploaded_file', filename=img.filename) }}')">
+                        <td>
+                        <img
+                            src="{{ url_for('uploaded_file', filename=img.filename) }}"
+                            width="80"
+                            alt="Image"
+                        />
+                        </td>
+                        <td>{{ img.filename }}</td>
+                        <td>{{ img.link }}</td>
+                        <td>{{ img.date }}</td>
+                        <td>{{ img.annotation }}</td>
+                        <td>{{ img.width }}x{{ img.height }}</td>
+                        <td>{{ img.filesize_kb }}</td>
+                        <td>({{ img.avg_color_r }}, {{ img.avg_color_g }}, {{ img.avg_color_b }})</td>
+                        <td>{{ img.contrast }}</td>
+                        <td>{{ img.saturation }}</td>
+                        <td>{{ img.luminance }}</td>
+                        <td>{{ img.type }}</td>
+                    </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="text-center margin-top">
+            <button class="btn" onclick="prevPage()">Précédent</button>
+            <span id="pageInfo">Page 1</span>
+            <button class="btn" onclick="nextPage()">Suivant</button>
+          </div>
+        </div>
+        <div class="text-center margin-top">
+          <button class="btn" onclick="hideDetails()">Retour</button>
+        </div>
+      </div>
+
+      <div id="lightbox" class="lightbox-container">
+        <div class="lightbox-content">
+          <button onclick="closeLightbox()" class="btn">X</button>
+          <img id="lightbox-img" src="" class="lightbox-img" />
+        </div>
+      </div>
+    </div>
+
+    <script src="../static/js/script.js"></script>
+  </body>
+</html>
