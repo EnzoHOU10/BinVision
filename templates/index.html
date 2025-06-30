@@ -73,6 +73,7 @@
                 <th>Contrast</th>
                 <th>Saturation</th>
                 <th>Luminance</th>
+                <th>Auto</th>
               </tr>
             </thead>
             <tbody id="tableaudimage">
@@ -94,6 +95,7 @@
                 <td>{{ img.contrast }}</td>
                 <td>{{ img.saturation }}</td>
                 <td>{{ img.luminance }}</td>
+                <td>{{ 'Oui' if img.auto_annotated else 'Non' }}</td>
               </tr>
               {% endfor %}
             </tbody>

@@ -122,6 +122,7 @@ class TrashImage(db.Model):
     contrast = db.Column(db.Integer)
     saturation = db.Column(db.Float)
     luminance = db.Column(db.Float)
+    auto_annotated = db.Column(db.Boolean, default=False)
 
 
 class ClassificationRule(db.Model):
@@ -249,6 +250,9 @@ def index():
                 
                 if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
                     annotation = auto_annotation
+                    is_auto = True
+                else:
+                    is_auto = False
 
                 new_image = TrashImage(
                     filename=filename,
@@ -262,20 +266,22 @@ def index():
                     avg_color_b=b,
                     contrast=contrast,
                     saturation=saturation,
-                    luminance=luminance
+                    luminance=luminance,
+                    auto_annotated=is_auto
                 )
                 db.session.add(new_image)
                 db.session.commit()
-                seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-                if seuils_plein and seuils_vide:
-                    for rule in ClassificationRule.query.all():
-                        if rule.name in seuils_plein and rule.name in seuils_vide:
+                if not is_auto:
+                    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+                    if seuils_plein and seuils_vide:
+                        for rule in ClassificationRule.query.all():
+                            if rule.name in seuils_plein and rule.name in seuils_vide:
                                 update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
             else:
                 return "Format de fichier non supporté", 400
         return redirect('/')
     
-    images = TrashImage.query.all()
+    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
     return render_template('index.html', images=images)
 
 @app.route('/stats')
