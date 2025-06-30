@@ -67,29 +67,30 @@ def calculate_seuils_from_db():
     cpt_plein = 0
     cpt_vide = 0
     for image in images:
-        cpt+=1
-        if image.annotation == 'Pleine':
-            cpt_plein += 1
-        else:
-            cpt_vide += 1
-        for rule in rules:
-            seuils[rule.name][0] += getattr(image, rule.name, None)
-            if getattr(image, rule.name, None) < seuils[rule.name][1]:
-                seuils[rule.name][1] = getattr(image, rule.name, None)
-            if getattr(image, rule.name, None) > seuils[rule.name][2]:
-                seuils[rule.name][2] = getattr(image, rule.name, None)
+        if image.type == 'Manual':
+            cpt+=1
             if image.annotation == 'Pleine':
-                seuils_plein[rule.name][0] += getattr(image, rule.name, None)
-                if getattr(image, rule.name, None) < seuils_plein[rule.name][1]:
-                    seuils_plein[rule.name][1] = getattr(image, rule.name, None)
-                if getattr(image, rule.name, None) > seuils_plein[rule.name][2]:
-                    seuils_plein[rule.name][2] = getattr(image, rule.name, None)
+                cpt_plein += 1
             else:
-                seuils_vide[rule.name][0] += getattr(image, rule.name, None)
-                if getattr(image, rule.name, None) < seuils_vide[rule.name][1]:
-                    seuils_vide[rule.name][1] = getattr(image, rule.name, None)
-                if getattr(image, rule.name, None) > seuils_vide[rule.name][2]:
-                    seuils_vide[rule.name][2] = getattr(image, rule.name, None)
+                cpt_vide += 1
+            for rule in rules:
+                seuils[rule.name][0] += getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) < seuils[rule.name][1]:
+                    seuils[rule.name][1] = getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) > seuils[rule.name][2]:
+                    seuils[rule.name][2] = getattr(image, rule.name, None)
+                if image.annotation == 'Pleine':
+                    seuils_plein[rule.name][0] += getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) < seuils_plein[rule.name][1]:
+                        seuils_plein[rule.name][1] = getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) > seuils_plein[rule.name][2]:
+                        seuils_plein[rule.name][2] = getattr(image, rule.name, None)
+                else:
+                    seuils_vide[rule.name][0] += getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) < seuils_vide[rule.name][1]:
+                        seuils_vide[rule.name][1] = getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) > seuils_vide[rule.name][2]:
+                        seuils_vide[rule.name][2] = getattr(image, rule.name, None)
     if cpt > 0:
         for rule in rules:
                 seuils[rule.name][0] = seuils[rule.name][0] / cpt
@@ -126,7 +127,7 @@ class TrashImage(db.Model):
     saturation = db.Column(db.Float)
     luminance = db.Column(db.Float)
     edge_density = db.Column(db.Float)
-    auto_annotated = db.Column(db.Boolean, default=False)
+    type = db.Column(db.String(10), nullable=True)
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -252,11 +253,12 @@ def index():
                 auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density)
                 annotation = request.form.get('annotation')
                 
+
                 if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
+                    is_auto = annotation
                     annotation = auto_annotation
-                    is_auto = True
                 else:
-                    is_auto = False
+                    is_auto = 'Manual'
 
                 new_image = TrashImage(
                     filename=filename,
@@ -272,16 +274,16 @@ def index():
                     saturation=saturation,
                     luminance=luminance,
                     edge_density=edge_density,
-                    auto_annotated=is_auto
+                    type=is_auto
                 )
                 db.session.add(new_image)
                 db.session.commit()
-                if not is_auto:
-                    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-                    if seuils_plein and seuils_vide:
-                        for rule in ClassificationRule.query.all():
-                            if rule.name in seuils_plein and rule.name in seuils_vide:
-                                update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
+                
+                seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+                if seuils_plein and seuils_vide:
+                    for rule in ClassificationRule.query.all():
+                        if rule.name in seuils_plein and rule.name in seuils_vide:
+                            update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
             else:
                 return "Format de fichier non supporté", 400
         return redirect('/')
