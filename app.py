@@ -126,6 +126,7 @@ class TrashImage(db.Model):
     saturation = db.Column(db.Float)
     luminance = db.Column(db.Float)
     edge_density = db.Column(db.Float)
+    auto_annotated = db.Column(db.Boolean, default=False)
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -270,7 +271,8 @@ def index():
                     contrast=contrast,
                     saturation=saturation,
                     luminance=luminance,
-                    edge_density=edge_density
+                    edge_density=edge_density,
+                    auto_annotated=is_auto
                 )
                 db.session.add(new_image)
                 db.session.commit()
