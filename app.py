@@ -12,7 +12,7 @@ from flask import send_from_directory
 from flask_socketio import SocketIO, emit
 import random
 import time, threading
-import datetime
+from datetime import datetime
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -116,7 +116,7 @@ class TrashImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(150), nullable=False)
     link = db.Column(db.String(200), nullable=False)
-    #date = db.Column(db.DateTime, default=datetime.utcnow)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
     annotation = db.Column(db.String(10), nullable=True)
     width = db.Column(db.Integer)
     height = db.Column(db.Integer)
