@@ -110,8 +110,6 @@ def calculate_seuils_from_db():
     else:
         return None, None, None
 
-
-
 class TrashImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(150), nullable=False)
@@ -127,7 +125,7 @@ class TrashImage(db.Model):
     contrast = db.Column(db.Integer)
     saturation = db.Column(db.Float)
     luminance = db.Column(db.Float)
-
+    edge_density = db.Column(db.Float)
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -169,8 +167,11 @@ def extract_features(image_path):
     contrast = gray.max() - gray.min()
     #Contours
     edges = cv2.Canny(gray, 100, 200)
-    edge_density = np.sum(edges) / edges.size
+    edge_density = np.sum(edges > 0) / (width * height)
     saturation = np.sqrt((r - g) ** 2 + (r - b) ** 2 + (g - b) ** 2)
+    print(f"Image: {image_path}, Size: {size} KB, Width: {width}, Height: {height}, "
+          f"Avg Color (R,G,B): ({r}, {g}, {b}), Contrast: {contrast}, Saturation: {saturation}, "
+          f"Luminance: {luminance}, Edge Density: {edge_density}")
     return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance), float(edge_density)
 
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance, edge_density):
@@ -268,7 +269,8 @@ def index():
                     avg_color_b=b,
                     contrast=contrast,
                     saturation=saturation,
-                    luminance=luminance
+                    luminance=luminance,
+                    edge_density=edge_density
                 )
                 db.session.add(new_image)
                 db.session.commit()
