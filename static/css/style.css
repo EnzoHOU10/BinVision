@@ -112,10 +112,6 @@ h3 {
   top: 10px;
   right: 10px;
 }
-.tableau {
-  height: 700px;
-  overflow-y: auto;
-}
 .margin-top {
   margin-top: 1rem;
 }
@@ -163,4 +159,45 @@ h3 {
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
   filter:drop-shadow(0 0 10px rgba(255, 255, 255, 1));
+}
+
+.tableau {
+  border-collapse: separate;
+  border-spacing: 10px 10px;
+  background-color: transparent;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  height: 700px;
+  overflow-y: auto;
+}
+
+.tableau thead {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.tableau tbody tr {
+  transition: background-color 0.3s ease;
+  cursor: pointer;
+}
+
+.tableau tbody td{
+  vertical-align: middle;
+  border: none;
+  background-color: transparent;
+  color: white;
+  border-radius: 10px;
+  max-width: 60px;
+}
+.tableau thead th{
+  vertical-align: middle;
+  border: none;
+  background-color: rgba(172, 255, 47, 0.5);
+  border-radius: 10px;
+} 
+
+.tableau img {
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
