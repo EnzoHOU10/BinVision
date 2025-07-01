@@ -73,6 +73,8 @@
         <br />
         {% endfor %}
         <button type="submit">Enregistrer</button>
+        <label for="use_auto_rules">Utiliser les règles automatiques :</label>
+        <input type="checkbox" name="use_auto_rules" {% if use_auto_rules %}checked{% endif %}>
       </form>
       <h3>Règles actuelles :</h3>
       <ul>

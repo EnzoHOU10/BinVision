@@ -136,6 +136,10 @@ class ClassificationRule(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.Float, nullable=False)
 
+class Settings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    use_auto_rules = db.Column(db.Boolean, default=True)
+
 with app.app_context():
     db.create_all()
     seuils = {
@@ -153,6 +157,9 @@ with app.app_context():
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
             db.session.add(ClassificationRule(name=name, value=value))
+        if Settings.query.first() is None:
+            db.session.add(Settings(use_auto_rules=True))
+            db.session.commit()
     db.session.commit()
 
 
@@ -263,11 +270,13 @@ def add_img(img):
         db.session.add(new_image)
         db.session.commit()
         
-        seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-        if seuils_plein and seuils_vide:
-            for rule in ClassificationRule.query.all():
-                if rule.name in seuils_plein and rule.name in seuils_vide:
-                    update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
+        settings = Settings.query.first()
+        if settings.use_auto_rules:
+            seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+            if seuils_plein and seuils_vide:
+                for rule in ClassificationRule.query.all():
+                    if rule.name in seuils_plein and rule.name in seuils_vide:
+                        update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
     else:
         return "Format de fichier non supporté", 400
     
@@ -312,25 +321,28 @@ def uploaded_file(filename):
 
 @app.route('/home', methods=['GET', 'POST'])
 def home():
+    settings = Settings.query.first()
+
     if request.method == 'POST':
         for name in request.form:
-            value = float(request.form[name])
-            rule = ClassificationRule.query.filter_by(name=name).first()
-            if rule:
-                rule.value = value
-            else:
-                rule = ClassificationRule(name=name, value=value)
-                db.session.add(rule)
+            if name != "use_auto_rules":
+                value = float(request.form[name])
+                update_rule(name, value)
+        settings.use_auto_rules = 'use_auto_rules' in request.form
         db.session.commit()
-        return redirect('/rules')
+        return redirect('/home')
     
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    print("Seuils:", seuils)
-    print("Seuils Plein:", seuils_plein)
-    print("Seuils Vide:", seuils_vide)
     images = TrashImage.query.all()
-    return render_template('home.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide, images=images)
+    return render_template(
+        'home.html', rules=rules,
+        seuils=seuils,
+        seuils_plein=seuils_plein,
+        seuils_vide=seuils_vide,
+        images=images,
+        use_auto_rules=settings.use_auto_rules
+    )
 
 @app.route('/predict', methods=['GET', 'POST'])
 def user():
