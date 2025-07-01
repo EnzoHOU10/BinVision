@@ -128,6 +128,8 @@ class TrashImage(db.Model):
     luminance = db.Column(db.Float)
     edge_density = db.Column(db.Float)
     type = db.Column(db.String(10), nullable=True)
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -230,6 +232,8 @@ def add_img(img):
         width, height, size, r, g, b, contrast, saturation, luminance, edge_density = extract_features(filepath)
         auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density)
         annotation = request.form.get('annotation')
+        lat = random.randint(49,50)
+        lng = random.randint(2,3)
         
 
         if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
@@ -252,7 +256,9 @@ def add_img(img):
             saturation=saturation,
             luminance=luminance,
             edge_density=edge_density,
-            type=is_auto
+            type=is_auto,
+            lat=lat,
+            lng=lng
         )
         db.session.add(new_image)
         db.session.commit()
@@ -300,27 +306,6 @@ def dashboard():
     annotations = [img.annotation for img in data]
     return render_template("dashboard.html", labels=labels, values=values, annotations=annotations)
 
-@app.route('/rules', methods=['GET', 'POST'])
-def rules():
-    if request.method == 'POST':
-        for name in request.form:
-            value = float(request.form[name])
-            rule = ClassificationRule.query.filter_by(name=name).first()
-            if rule:
-                rule.value = value
-            else:
-                rule = ClassificationRule(name=name, value=value)
-                db.session.add(rule)
-        db.session.commit()
-        return redirect('/rules')
-    
-    rules = ClassificationRule.query.all()
-    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    print("Seuils:", seuils)
-    print("Seuils Plein:", seuils_plein)
-    print("Seuils Vide:", seuils_vide)
-    return render_template('rules.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide)
-
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
@@ -344,7 +329,8 @@ def home():
     print("Seuils:", seuils)
     print("Seuils Plein:", seuils_plein)
     print("Seuils Vide:", seuils_vide)
-    return render_template('home.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide)
+    images = TrashImage.query.all()
+    return render_template('home.html', rules=rules, seuils=seuils, seuils_plein=seuils_plein, seuils_vide=seuils_vide, images=images)
 
 @app.route('/predict', methods=['GET', 'POST'])
 def user():
@@ -362,10 +348,12 @@ socketio = SocketIO(app)
 @socketio.on('connect')
 def handle_connect():
     print("Client connecté")
-    send_marker_update()
+    images = TrashImage.query.all()
+    for img in images:
+        send_marker_update(img)
 
-def send_marker_update():
-    socketio.emit('update_marker', {'id': 'tour_eiffel', 'lat': 48.8584, 'lng': 2.2945})
+def send_marker_update(img):
+    socketio.emit('update_marker', {'id': img.id, 'lat': img.lat, 'lng': img.lng})
 
 def evaluer_precision():
     images = TrashImage.query.filter(TrashImage.annotation.in_(['Pleine', 'Vide']), TrashImage.type == 'Manual').all()
