@@ -166,13 +166,21 @@ def extract_features(image_path):
     gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
     luminance_array = 0.2126 * np_img[:, :, 0] + 0.7152 * np_img[:, :, 1] + 0.0722 * np_img[:, :, 2]
     luminance = luminance_array.mean()
-    contrast = gray.max() - gray.min()
-    edges = cv2.Canny(gray, 100, 200)
+    contrast = gray.std()
+    v = np.median(gray)
+    lower = int(max(0, 0.66 * v))
+    upper = int(min(255, 1.33 * v))
+    edges = cv2.Canny(gray, lower, upper)
     edge_density = np.sum(edges > 0) / (width * height)
-    saturation = np.sqrt((r - g) ** 2 + (r - b) ** 2 + (g - b) ** 2)
+    hsv = cv2.cvtColor(np_img, cv2.COLOR_RGB2HSV)
+    saturation = hsv[:, :, 1].mean()
     return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance), float(edge_density)
 
+def in_range(value, interval):
+    return interval[1] <= value <= interval[2]
+
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance, edge_density):
+    # Récupération des seuils avec ta fonction get_rule
     r_thresh = get_rule("avg_color_r")
     g_thresh = get_rule("avg_color_g")
     b_thresh = get_rule("avg_color_b")
@@ -184,38 +192,19 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
     luminance_thresh = get_rule("luminance")
     edge_density_thresh = get_rule("edge_density")
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    score = 0
+    if avg_r < r_thresh: score += 1
+    if avg_g < g_thresh: score += 1
+    if avg_b < b_thresh: score += 1
+    if height > height_thresh: score += 1
+    if edge_density > edge_density_thresh: score += 2
+    if contrast > contrast_thresh: score += 1
+    if saturation < saturation_thresh: score += 1
+    if luminance < luminance_thresh: score += 1
+    if filesize_kb > filesize_thresh: score += 3
+    if avg_r < r_thresh and saturation < saturation_thresh: score += 1
+    return "Pleine" if score >= 5 else "Vide"
 
-    if edge_density > edge_density_thresh * 1.3:
-        return "Pleine"
-    if contrast < contrast_thresh * 0.6 and saturation < saturation_thresh * 0.6:
-        return "Vide"
-    if filesize_kb > filesize_thresh * 1.5 and contrast > contrast_thresh:
-        return "Pleine"
-    if luminance > 230 and contrast < contrast_thresh * 0.7 and edge_density < edge_density_thresh * 0.8:
-        return "Vide"
-    if width > width_thresh * 1.2 and height > height_thresh * 1.2 and filesize_kb > filesize_thresh * 1.3:
-        return "Pleine"
-    
-    def distance_to_profile(profile):
-        return (
-            abs(avg_r - profile["avg_color_r"][0]) +
-            abs(avg_g - profile["avg_color_g"][0]) +
-            abs(avg_b - profile["avg_color_b"][0]) +
-            abs(filesize_kb - profile["filesize_kb"][0]) +
-            abs(width - profile["width"][0]) +
-            abs(height - profile["height"][0]) +
-            abs(contrast - profile["contrast"][0]) +
-            abs(saturation - profile["saturation"][0]) +
-            abs(luminance - profile["luminance"][0]) +
-            abs(edge_density - profile["edge_density"][0])
-        )
-
-    if seuils_plein and seuils_vide:
-        dist_plein = distance_to_profile(seuils_plein)
-        dist_vide = distance_to_profile(seuils_vide)
-        return "Pleine" if dist_plein < dist_vide else "Vide"
-    
-    return "Pleine"
 
 
 
@@ -377,6 +366,127 @@ def handle_connect():
 
 def send_marker_update():
     socketio.emit('update_marker', {'id': 'tour_eiffel', 'lat': 48.8584, 'lng': 2.2945})
+
+def evaluer_precision():
+    images = TrashImage.query.filter(TrashImage.annotation.in_(['Pleine', 'Vide']), TrashImage.type == 'Manual').all()
+    bonnes_preds = 0
+    total = len(images)
+
+    for img in images:
+        prediction = classify_image(
+            img.avg_color_r, img.filesize_kb, img.avg_color_g, img.avg_color_b,
+            img.width, img.height, img.contrast, img.saturation,
+            img.luminance, img.edge_density
+        )
+        if prediction == img.annotation:
+            bonnes_preds += 1
+
+    if total == 0:
+        return "Aucune image annotée pour évaluer la précision."
+    else:
+        precision = bonnes_preds / total
+        return f"Précision de l'IA codée en dur : {precision * 100:.2f}% ({bonnes_preds}/{total} prédictions correctes)"
+
+@app.route('/evaluer_precision')
+def route_precision():
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    # Récupération des seuils depuis la base (exemple)
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+
+    # Préparation d'une liste pour construire le DataFrame
+    rows = []
+    for var in seuils.keys():
+        # seuils global (moyenne, min, max)
+        m, mi, ma = seuils[var]
+        # seuils plein (moyenne, min, max)
+        mp, mip, map_ = seuils_plein.get(var, (None, None, None))
+        # seuils vide (moyenne, min, max)
+        mv, miv, mav = seuils_vide.get(var, (None, None, None))
+        rows.append({
+            "Variable": var,
+            "Global_Mean": m,
+            "Global_Min": mi,
+            "Global_Max": ma,
+            "Plein_Mean": mp,
+            "Plein_Min": mip,
+            "Plein_Max": map_,
+            "Vide_Mean": mv,
+            "Vide_Min": miv,
+            "Vide_Max": mav,
+        })
+
+    # Création du DataFrame
+    df = pd.DataFrame(rows)
+
+    print(df)
+
+    # --- Graphique ---
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    variables = df["Variable"].tolist()
+    indices = range(len(variables))
+
+    def plot_interval(ax, indices, means, mins, maxs, label, color):
+        for i, (m, mi, ma) in enumerate(zip(means, mins, maxs)):
+            if m is None:
+                continue
+            ax.plot([mi, ma], [i, i], color=color, lw=6, alpha=0.6)
+            ax.plot(m, i, 'o', color=color, label=label if i == 0 else "")
+
+    plot_interval(
+        ax, indices,
+        df["Global_Mean"], df["Global_Min"], df["Global_Max"],
+        label="Global", color="gray"
+    )
+    plot_interval(
+        ax, indices,
+        df["Plein_Mean"], df["Plein_Min"], df["Plein_Max"],
+        label="Plein", color="green"
+    )
+    plot_interval(
+        ax, indices,
+        df["Vide_Mean"], df["Vide_Min"], df["Vide_Max"],
+        label="Vide", color="red"
+    )
+
+    ax.set_yticks(indices)
+    ax.set_yticklabels(variables)
+    ax.invert_yaxis()
+    ax.set_xlabel("Valeurs des seuils")
+    ax.set_title("Comparaison des intervalles de seuils par variable")
+
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
+
+    return evaluer_precision()
+
+def tableau_confusion():
+    from collections import Counter
+    images = TrashImage.query.filter(TrashImage.annotation.in_(['Pleine', 'Vide']), TrashImage.type == 'Manual').all()
+    confusion = Counter()
+
+    for img in images:
+        pred = classify_image(
+            img.avg_color_r, img.filesize_kb, img.avg_color_g, img.avg_color_b,
+            img.width, img.height, img.contrast, img.saturation,
+            img.luminance, img.edge_density
+        )
+        confusion[(img.annotation, pred)] += 1
+
+    return f"""Tableau de confusion :
+    Vérité terrain \\ Prédiction
+    Pleine -> Pleine : {confusion[("Pleine", "Pleine")]}
+    Pleine -> Vide   : {confusion[("Pleine", "Vide")]}
+    Vide   -> Pleine : {confusion[("Vide", "Pleine")]}
+    Vide   -> Vide   : {confusion[("Vide", "Vide")]}"""
+
+@app.route('/tableau_confusion')
+def route_tableau_confusion():
+    return tableau_confusion() 
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
