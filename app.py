@@ -372,11 +372,29 @@ def stats():
 
 @app.route('/dashboard')
 def dashboard():
-    data = TrashImage.query.all()
-    labels = [img.filename for img in data]
-    values = [img.filesize_kb for img in data]
-    annotations = [img.annotation for img in data]
-    return render_template("dashboard.html", labels=labels, values=values, annotations=annotations)
+    images = TrashImage.query.all()
+
+    total_images = len(images)
+    pleines = sum(1 for img in images if img.annotation == 'Pleine')
+    vides = sum(1 for img in images if img.annotation == 'Vide')
+    sizes = [img.filesize_kb for img in images]
+    annotations = [img.annotation for img in images]
+
+    r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
+    g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
+    b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
+
+    return render_template(
+        "dashboard.html",
+        total_images=total_images,
+        pleines=pleines,
+        vides=vides,
+        sizes=sizes,
+        annotations=annotations,
+        r_values=r_values,
+        g_values=g_values,
+        b_values=b_values
+    )
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
