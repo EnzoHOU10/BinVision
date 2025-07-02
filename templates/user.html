@@ -17,7 +17,9 @@
       <br />
       <a href="/home">Home</a>
       <a href="/predict"><strong>Pleine/Vide</strong></a>
-      <a href="/">Settings</a>
+      {% if user and user.role == 'admin' %}
+        <a href="/">Settings</a>
+      {% endif %}
       <a href="/dashboard">Dashboard</a>
       <div id="end">
         <p>All rights reserved</p>
@@ -25,7 +27,9 @@
         <p>Version 1.0.0</p>
       </div>
     </div>
-
+    <div class="btnright">
+      <a href="/account" class="btn">Account</a>
+    </div>
     <div class="content">
       <div class="register">
         <h3>Augmenter la précision de l'IA</h3>

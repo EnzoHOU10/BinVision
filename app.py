@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, session
 from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
 from flask_sqlalchemy import SQLAlchemy
 import os
@@ -15,6 +15,7 @@ from datetime import datetime
 from skimage.filters import sobel
 from skimage.feature import local_binary_pattern
 from skimage.measure import shannon_entropy
+from werkzeug.security import generate_password_hash, check_password_hash
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -23,6 +24,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.secret_key = "projetbinvision2025"
 
 db = SQLAlchemy(app)
 
@@ -153,6 +155,12 @@ class ClassificationRule(db.Model):
 class Settings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     use_auto_rules = db.Column(db.Boolean, default=True)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='user')
 
 with app.app_context():
     db.create_all()
@@ -358,6 +366,9 @@ def add_img(img):
     
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
     if request.method == 'POST':
         images = request.files.getlist('image')
         for img in images:
@@ -365,23 +376,7 @@ def index():
         return redirect('/')
     
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template('index.html', images=images)
-
-@app.route('/stats')
-def stats():
-    pleines = TrashImage.query.filter_by(annotation='Pleine').count()
-    vides = TrashImage.query.filter_by(annotation='Vide').count()
-
-    fig, ax = plt.subplots()
-    ax.bar(['Pleine', 'Vide'], [pleines, vides], color=['red', 'green'])
-    ax.set_title("Distribution des annotations")
-
-    img = io.BytesIO()
-    fig.savefig(img, format='png')
-    img.seek(0)
-    plot_url = base64.b64encode(img.getvalue()).decode()
-
-    return f'<img src="data:image/png;base64,{plot_url}" />'
+    return render_template('index.html', images=images, user=user)
 
 @app.route('/dashboard')
 def dashboard():
@@ -397,8 +392,11 @@ def uploaded_file(filename):
 
 @app.route('/home', methods=['GET', 'POST'])
 def home():
-    settings = Settings.query.first()
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
 
+    settings = Settings.query.first()
     if request.method == 'POST':
         for name in request.form:
             if name != "use_auto_rules":
@@ -424,11 +422,15 @@ def home():
         seuils_plein=seuils_plein,
         seuils_vide=seuils_vide,
         images=images_conv,
-        use_auto_rules=settings.use_auto_rules
+        use_auto_rules=settings.use_auto_rules,
+        user=user
     )
 
 @app.route('/predict', methods=['GET', 'POST'])
 def user():
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
     if request.method == 'POST':
         images = request.files.getlist('image')
         for img in images:
@@ -436,7 +438,43 @@ def user():
         return redirect('/predict')
     
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template('user.html', images=images)
+    return render_template('user.html', images=images, user=user)
+
+from flask import flash, session
+
+@app.route('/account', methods=['GET', 'POST'])
+def account():
+    message = ""
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        action = request.form['action']
+        if action == "register":
+            if User.query.filter_by(username=username).first():
+                message = "Nom d'utilisateur déjà pris."
+            else:
+                hashed_pw = generate_password_hash(password)
+                user = User(username=username, password=hashed_pw)
+                db.session.add(user)
+                db.session.commit()
+                message = "Inscription réussie. Connectez-vous."
+        elif action == "login":
+            user = User.query.filter_by(username=username).first()
+            if user and check_password_hash(user.password, password):
+                session['user_id'] = user.id
+                return redirect('/account')
+            else:
+                message = "Identifiants incorrects."
+        user = None 
+    return render_template('account.html', message=message, user=user)
+
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    return redirect('/account')
 
 socketio = SocketIO(app)
 

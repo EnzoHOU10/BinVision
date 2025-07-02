@@ -28,7 +28,9 @@
       <br />
       <a href="/home"><strong>Home</strong></a>
       <a href="/predict">Pleine/Vide</a>
-      <a href="/">Settings</a>
+      {% if user and user.role == 'admin' %}
+        <a href="/">Settings</a>
+      {% endif %}
       <a href="/dashboard">Dashboard</a>
       <div id="end">
         <p>All rights reserved</p>
@@ -36,7 +38,9 @@
         <p>Version 1.0.0</p>
       </div>
     </div>
-
+    <div class="btnright">
+      <a href="/account" class="btn">Account</a>
+    </div>
     <div class="content">
       <h3>IA – Suivi en temps réel avec Google Maps</h3>
       <div class="d-flex">
