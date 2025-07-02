@@ -299,8 +299,8 @@ def add_img(img):
 
         auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density, entropy, texture_lbp, edge_energy)
         annotation = request.form.get('annotation')
-        lat = random.randint(49,50)
-        lng = random.randint(2,3)
+        lat = random.uniform(48.5, 49)
+        lng = random.uniform(2,2.6)
         
         
         if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
