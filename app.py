@@ -13,6 +13,9 @@ from flask_socketio import SocketIO, emit
 import random
 import time, threading
 from datetime import datetime
+from skimage.filters import sobel
+from skimage.feature import local_binary_pattern
+from skimage.measure import shannon_entropy
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -35,7 +38,10 @@ def calculate_seuils_from_db():
         "contrast": [0,900,0],
         "saturation": [0,900,0],
         "luminance": [0,900,0],
-        "edge_density": [0,900,0]
+        "edge_density": [0,900,0],
+        "entropy": [0,900,0],
+        "texture_lbp": [0,900,0],
+        "edge_energy": [0,900,0]
     }
     seuils_plein = {
         "avg_color_r": [0,900,0],
@@ -47,7 +53,10 @@ def calculate_seuils_from_db():
         "contrast": [0,900,0],
         "saturation": [0,900,0],
         "luminance": [0,900,0],
-        "edge_density": [0,900,0]
+        "edge_density": [0,900,0],
+        "entropy": [0,900,0],
+        "texture_lbp": [0,900,0],
+        "edge_energy": [0,900,0]
     }
     seuils_vide = {
         "avg_color_r": [0,900,0],
@@ -59,7 +68,10 @@ def calculate_seuils_from_db():
         "contrast": [0,900,0],
         "saturation": [0,900,0],
         "luminance": [0,900,0],
-        "edge_density": [0,900,0]
+        "edge_density": [0,900,0],
+        "entropy": [0,900,0],
+        "texture_lbp": [0,900,0],
+        "edge_energy": [0,900,0]
     }
     rules = ClassificationRule.query.all()
     images = TrashImage.query.all()
@@ -127,9 +139,13 @@ class TrashImage(db.Model):
     saturation = db.Column(db.Float)
     luminance = db.Column(db.Float)
     edge_density = db.Column(db.Float)
+    entropy = db.Column(db.Float, nullable=True)
+    texture_lbp = db.Column(db.Float, nullable=True)
+    edge_energy = db.Column(db.Float, nullable=True)
     type = db.Column(db.String(10), nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
+    
 
 class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -152,7 +168,11 @@ with app.app_context():
         "contrast": 0.05,
         "saturation": 0.05,
         "luminance": 0.05,
-        "edge_density": 0.05
+        "edge_density": 0.05,
+        "entropy": 5.0,
+        "texture_lbp": 0.5,
+        "edge_energy": 1000.0
+
     }
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
@@ -168,27 +188,54 @@ def allowed_file(filename):
 
 def extract_features(image_path):
     size = os.path.getsize(image_path) / 1024
-    img = Image.open(image_path).convert('RGB')
-    width, height = img.size
-    np_img = np.array(img)
-    r, g, b = np_img[:, :, 0].mean(), np_img[:, :, 1].mean(), np_img[:, :, 2].mean()
-    gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
-    luminance_array = 0.2126 * np_img[:, :, 0] + 0.7152 * np_img[:, :, 1] + 0.0722 * np_img[:, :, 2]
-    luminance = luminance_array.mean()
+
+    # Chargement OpenCV
+    img_cv = cv2.imread(image_path)
+    img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+    height, width, _ = img_rgb.shape
+
+    # Composantes couleurs
+    r_channel, g_channel, b_channel = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
+    r, g, b = r_channel.mean(), g_channel.mean(), b_channel.mean()
+    r_std, g_std, b_std = r_channel.std(), g_channel.std(), b_channel.std()
+
+    # Niveau de gris
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+
+    # Contrast
     contrast = gray.std()
-    v = np.median(gray)
-    lower = int(max(0, 0.66 * v))
-    upper = int(min(255, 1.33 * v))
-    edges = cv2.Canny(gray, lower, upper)
+
+    # Luminance
+    luminance_array = 0.2126 * r_channel + 0.7152 * g_channel + 0.0722 * b_channel
+    luminance = luminance_array.mean()
+
+    # Densité des bords
+    edges = cv2.Canny(gray, 50, 150)
     edge_density = np.sum(edges > 0) / (width * height)
-    hsv = cv2.cvtColor(np_img, cv2.COLOR_RGB2HSV)
+
+    # Saturation
+    hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
     saturation = hsv[:, :, 1].mean()
-    return width, height, float(size), int(r), int(g), int(b), float(contrast), float(saturation), float(luminance), float(edge_density)
 
-def in_range(value, interval):
-    return interval[1] <= value <= interval[2]
+    # Entropie (informations)
+    entropy = shannon_entropy(gray)
 
-def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance, edge_density):
+    # Texture par LBP
+    lbp = local_binary_pattern(gray, P=8, R=1.0, method="uniform")
+    texture_lbp = lbp.std()
+
+    # Énergie des bords (via Sobel)
+    sobel_edges = sobel(gray)
+    edge_energy = np.sum(sobel_edges ** 2)
+
+    return (
+        width, height, float(size),
+        int(r), int(g), int(b),
+        float(contrast), float(saturation), float(luminance),
+        float(edge_density), float(entropy), float(texture_lbp), float(edge_energy)
+    )
+
+def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminance, edge_density, entropy, texture_lbp, edge_energy):
     # Récupération des seuils avec ta fonction get_rule
     r_thresh = get_rule("avg_color_r")
     g_thresh = get_rule("avg_color_g")
@@ -200,6 +247,10 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
     saturation_thresh = get_rule("saturation")
     luminance_thresh = get_rule("luminance")
     edge_density_thresh = get_rule("edge_density")
+    entropy_thresh = get_rule("entropy")
+    texture_thresh = get_rule("texture_lbp")
+    energy_thresh = get_rule("edge_energy")
+
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     score = 0
     if avg_r < r_thresh: score += 1
@@ -211,6 +262,9 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
     if saturation < saturation_thresh: score += 1
     if luminance < luminance_thresh: score += 1
     if filesize_kb > filesize_thresh: score += 3
+    if entropy > entropy_thresh: score += 1
+    if texture_lbp < texture_thresh: score += 1
+    if edge_energy > energy_thresh: score += 1
     if avg_r < r_thresh and saturation < saturation_thresh: score += 1
     return "Pleine" if score >= 5 else "Vide"
 
@@ -236,13 +290,19 @@ def add_img(img):
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         img.save(filepath)
         link = filepath
-        width, height, size, r, g, b, contrast, saturation, luminance, edge_density = extract_features(filepath)
-        auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density)
+        # Remplace l'appel par :
+        (width, height, size, r, g, b, contrast, saturation, luminance, edge_density, entropy, texture_lbp, edge_energy) = extract_features(filepath)
+        # Puis ajoute ces lignes dans new_image :
+        entropy=entropy
+        texture_lbp=texture_lbp
+        edge_energy=edge_energy
+
+        auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminance, edge_density, entropy, texture_lbp, edge_energy)
         annotation = request.form.get('annotation')
         lat = random.randint(49,50)
         lng = random.randint(2,3)
         
-
+        
         if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
             is_auto = annotation
             annotation = auto_annotation
@@ -263,6 +323,9 @@ def add_img(img):
             saturation=saturation,
             luminance=luminance,
             edge_density=edge_density,
+            entropy=entropy,
+            texture_lbp=texture_lbp,
+            edge_energy=edge_energy,
             type=is_auto,
             lat=lat,
             lng=lng
@@ -376,7 +439,7 @@ def evaluer_precision():
         prediction = classify_image(
             img.avg_color_r, img.filesize_kb, img.avg_color_g, img.avg_color_b,
             img.width, img.height, img.contrast, img.saturation,
-            img.luminance, img.edge_density
+            img.luminance, img.edge_density, img.entropy, img.texture_lbp, img.edge_energy
         )
         if prediction == img.annotation:
             bonnes_preds += 1
@@ -398,17 +461,12 @@ def route_precision():
     # Préparation d'une liste pour construire le DataFrame
     rows = []
     for var in seuils.keys():
-        # seuils global (moyenne, min, max)
-        m, mi, ma = seuils[var]
         # seuils plein (moyenne, min, max)
         mp, mip, map_ = seuils_plein.get(var, (None, None, None))
         # seuils vide (moyenne, min, max)
         mv, miv, mav = seuils_vide.get(var, (None, None, None))
         rows.append({
             "Variable": var,
-            "Global_Mean": m,
-            "Global_Min": mi,
-            "Global_Max": ma,
             "Plein_Mean": mp,
             "Plein_Min": mip,
             "Plein_Max": map_,
@@ -436,11 +494,7 @@ def route_precision():
             ax.plot([mi, ma], [i, i], color=color, lw=6, alpha=0.6)
             ax.plot(m, i, 'o', color=color, label=label if i == 0 else "")
 
-    plot_interval(
-        ax, indices,
-        df["Global_Mean"], df["Global_Min"], df["Global_Max"],
-        label="Global", color="gray"
-    )
+
     plot_interval(
         ax, indices,
         df["Plein_Mean"], df["Plein_Min"], df["Plein_Max"],
@@ -461,7 +515,7 @@ def route_precision():
     ax.legend()
     plt.tight_layout()
     plt.show()
-
+    print(search_best_thresholds())
     return evaluer_precision()
 
 def tableau_confusion():
@@ -473,7 +527,7 @@ def tableau_confusion():
         pred = classify_image(
             img.avg_color_r, img.filesize_kb, img.avg_color_g, img.avg_color_b,
             img.width, img.height, img.contrast, img.saturation,
-            img.luminance, img.edge_density
+            img.luminance, img.edge_density, img.entropy, img.texture_lbp, img.edge_energy
         )
         confusion[(img.annotation, pred)] += 1
 
@@ -487,6 +541,78 @@ def tableau_confusion():
 @app.route('/tableau_confusion')
 def route_tableau_confusion():
     return tableau_confusion() 
+
+def evaluate_classification(seuils_test):
+    """
+    Évalue la précision de classification avec un dictionnaire de seuils donné.
+    seuils_test : dict { nom_regle : valeur_seuil }
+    Retourne la précision (ratio des bonnes classifications sur les images manuelles)
+    """
+    images = TrashImage.query.filter_by(type='Manual').all()
+    if not images:
+        return 0
+
+    correct = 0
+    total = len(images)
+
+    for img in images:
+        score = 0
+        # Exemple d'application des règles, modifie selon ta logique de score
+        if img.avg_color_r < seuils_test['avg_color_r']: score += 1
+        if img.avg_color_g < seuils_test['avg_color_g']: score += 1
+        if img.avg_color_b < seuils_test['avg_color_b']: score += 1
+        if img.height > seuils_test['height']: score += 1
+        if img.edge_density > seuils_test['edge_density']: score += 2
+        if img.contrast > seuils_test['contrast']: score += 1
+        if img.saturation < seuils_test['saturation']: score += 1
+        if img.luminance < seuils_test['luminance']: score += 1
+        if img.filesize_kb > seuils_test['filesize_kb']: score += 3
+        if img.entropy > seuils_test['entropy']: score += 1
+        if img.texture_lbp < seuils_test['texture_lbp']: score += 1
+        if img.edge_energy > seuils_test['edge_energy']: score += 1
+        if img.avg_color_r < seuils_test['avg_color_r'] and img.saturation < seuils_test['saturation']: score += 1
+
+        predicted = "Pleine" if score >= 5 else "Vide"
+        if predicted == img.annotation:
+            correct += 1
+
+    return correct / total
+
+def search_best_thresholds(step=(1)):
+    """
+    Recherche brute force pour trouver la meilleure combinaison de seuils.
+    step : pas d'incrémentation des seuils testés (à ajuster selon les plages)
+    """
+    # Récupérer les règles actuelles
+    rules = ClassificationRule.query.all()
+
+    # Récupérer plages possibles à partir des données
+    seuils_min_max = {}
+    images = TrashImage.query.filter_by(type='Manual').all()
+    for rule in rules:
+        values = [getattr(img, rule.name) for img in images if getattr(img, rule.name) is not None]
+        if values:
+            seuils_min_max[rule.name] = (min(values), max(values))
+        else:
+            seuils_min_max[rule.name] = (0, 1000)  # Valeurs par défaut
+
+    best_score = 0
+    best_thresholds = {}
+
+    # Pour limiter la combinatoire, on peut tester une seule règle à la fois ici,
+    # ou plus si tu veux et que les données ne sont pas trop nombreuses.
+    for rule in rules:
+        min_val, max_val = seuils_min_max[rule.name]
+        # Itérer sur une plage avec un step
+        for val in np.arange(min_val, max_val, step):
+            test_thresholds = {r.name: get_rule(r.name) for r in rules}
+            test_thresholds[rule.name] = val
+            score = evaluate_classification(test_thresholds)
+            if score > best_score:
+                best_score = score
+                best_thresholds = test_thresholds.copy()
+
+    return best_thresholds, best_score
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
