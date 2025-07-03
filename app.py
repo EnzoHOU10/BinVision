@@ -434,7 +434,7 @@ def home():
                 update_rule(name, value)
         settings.use_auto_rules = 'use_auto_rules' in request.form
         db.session.commit()
-        return redirect('/home')
+        return redirect('/')
     
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
