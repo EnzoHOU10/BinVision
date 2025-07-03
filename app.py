@@ -375,7 +375,7 @@ def add_img(img):
     else:
         return "Format de fichier non supporté", 400
     
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/admin', methods=['GET', 'POST'])
 def index():
     user = None
     if 'user_id' in session:
@@ -417,7 +417,7 @@ def dashboard():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/home', methods=['GET', 'POST'])
+@app.route('/', methods=['GET', 'POST'])
 def home():
     user = None
     if 'user_id' in session:
