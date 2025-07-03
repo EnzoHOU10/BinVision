@@ -117,14 +117,16 @@
         </div>
       </div>
 
-      <div id="lightbox" class="lightbox-container">
-        <div class="lightbox-content">
-          <button onclick="closeLightbox()" class="btn">X</button>
+      <div id="lightbox" class="lightbox-container" onclick="closeLightbox(event)">
+        <div class="lightbox-content" onclick="event.stopPropagation()">
+          <button onclick="closeLightbox()" class="lightbox-close-btn" aria-label="Fermer">✕</button>
           <img id="lightbox-img" src="" class="lightbox-img" />
         </div>
       </div>
     </div>
 
     <script src="../static/js/script.js"></script>
+    <script>
+    </script>
   </body>
 </html>
