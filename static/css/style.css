@@ -255,11 +255,104 @@ h3 {
   margin: auto;
 }
 
-/* Pour la table responsive */
 .table-responsive {
   max-height: 65vh;
   overflow-y: auto;
   overflow-x: auto;
   margin-bottom: 0;
   background: transparent;
+}
+
+.account-content {
+  max-height: 70vh;
+  margin: 5vh auto 0 auto;
+  background: rgba(0,0,0,0.7);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px 0 rgba(135, 31, 31, 0.15);
+  padding: 4vh 2vw 3vh 2vw;
+  width: 95vw;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.account-avatar {
+  width: 9vh;
+  height: 9vh;
+  min-width: 48px;
+  min-height: 48px;
+  max-width: 90px;
+  max-height: 90px;
+  border-radius: 50%;
+  background: #222;
+  box-shadow: 0 2px 8px #0006;
+  margin-right: 2vw;
+}
+.account-userinfo {
+  font-size: 2.2vh;
+  color: #fff;
+  font-weight: 600;
+}
+.account-role {
+  color: #aaffaa;
+  font-size: 1.7vh;
+}
+.account-box {
+  background: rgba(255,255,255,0.07);
+  border-radius: 1.5vh;
+  padding: 3vh 2vw;
+  margin-bottom: 2.5vh;
+  color: #fff;
+}
+.account-box h4 {
+  color: #aaffaa;
+  font-size: 2vh;
+  margin-bottom: 1.5vh;
+}
+.account-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 1.7vh;
+}
+.account-btns .btn {
+  width: 100%;
+  font-size: 2vh;
+  padding: 1.2vh 0;
+}
+.account-btns {
+  margin-bottom: 2vh;
+}
+.account-form {
+  background: rgba(255,255,255,0.07);
+  border-radius: 1.5vh;
+  padding: 3vh 2vw;
+}
+.account-form label {
+  color: #aaffaa;
+  font-size: 1.7vh;
+}
+.account-form input {
+  background: #222;
+  color: #fff;
+  border: 1px solid #aaffaa;
+  font-size: 1.7vh;
+  padding: 1.2vh 1vw;
+}
+.account-form .alert-info {
+  background: #222;
+  color: #aaffaa;
+  border: none;
+  border-radius: 1vh;
+  font-size: 1.7vh;
+}
+.account-title {
+  color: #aaffaa;
+  letter-spacing: 1px;
+  font-size: 2.5vh;
+}
+.account-back {
+  width: 80%;
+  font-size: 2vh;
+  padding: 1.2vh 0;
 }
