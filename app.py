@@ -391,14 +391,16 @@ def index():
 
 @app.route('/dashboard')
 def dashboard():
-    images = TrashImage.query.all()
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
 
+    images = TrashImage.query.all()
     total_images = len(images)
     pleines = sum(1 for img in images if img.annotation == 'Pleine')
     vides = sum(1 for img in images if img.annotation == 'Vide')
     sizes = [img.filesize_kb for img in images]
     annotations = [img.annotation for img in images]
-
     r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
     g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
     b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
@@ -412,7 +414,8 @@ def dashboard():
         annotations=annotations,
         r_values=r_values,
         g_values=g_values,
-        b_values=b_values
+        b_values=b_values,
+        user=user 
     )
 
 @app.route('/uploads/<filename>')
