@@ -375,8 +375,10 @@ def add_img(img):
     else:
         return "Format de fichier non supporté", 400
     
-@app.route('/', methods=['GET', 'POST'])
-def index():
+
+# Route /admin remplace l'ancien index
+@app.route('/admin', methods=['GET', 'POST'])
+def settings():
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
@@ -421,7 +423,9 @@ def dashboard():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/home', methods=['GET', 'POST'])
+
+# Route / devient l'ancien /home
+@app.route('/', methods=['GET', 'POST'])
 def home():
     user = None
     if 'user_id' in session:
@@ -435,7 +439,7 @@ def home():
                 update_rule(name, value)
         settings.use_auto_rules = 'use_auto_rules' in request.form
         db.session.commit()
-        return redirect('/home')
+        return redirect('/')
     
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()

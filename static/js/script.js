@@ -27,7 +27,7 @@ function annotation(annotation) {
   const formData = new FormData();
   formData.append("image", files[currentIndex]);
   formData.append("annotation", annotation);
-  fetch("/", {
+  fetch("/admin", {
     method: "POST",
     body: formData,
   })
