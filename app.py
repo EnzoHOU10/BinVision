@@ -214,7 +214,7 @@ def extract_features(image_path):
     hist_r = (np.histogram(img_np[:, :, 0], bins=256, range=(0, 256))[0]).tolist()
     hist_g = (np.histogram(img_np[:, :, 1], bins=256, range=(0, 256))[0]).tolist()
     hist_b = (np.histogram(img_np[:, :, 2], bins=256, range=(0, 256))[0]).tolist()
-
+    
     # Contrast
     contrast = int(img_np.max() - img_np.min())
 
