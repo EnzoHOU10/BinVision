@@ -289,14 +289,15 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
 
     def in_range(val, minv, maxv):
         return minv <= val <= maxv
-    """    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge), ('entropy', entropy), ('texture_lbp', texture_lbp), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
+    
+    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge), ('entropy', entropy), ('texture_lbp', texture_lbp), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
         plein_min, plein_max = seuils_plein[name][1], seuils_plein[name][2]
         vide_min, vide_max = seuils_vide[name][1], seuils_vide[name][2]
         if in_range(val, plein_min, plein_max) and not in_range(val, vide_min, vide_max):
             score += 1  # fort indice "Pleine"
         if not in_range(val, plein_min, plein_max) and in_range(val, vide_min, vide_max):
             score -= 1
-    """
+
     # Décision finale : seuil à ajuster selon tes tests (ex : >=7)
     return "Pleine" if score >= 8 else "Vide"
 
@@ -329,7 +330,6 @@ def add_img(img):
         texture_lbp=texture_lbp
         edge_energy=edge_energy
 
-        auto_annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy)
         annotation = request.form.get('annotation')
         lat = random.uniform(48.5, 49)
         lng = random.uniform(2,2.6)
@@ -337,7 +337,7 @@ def add_img(img):
         
         if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
             is_auto = annotation
-            annotation = auto_annotation
+            annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy)
         else:
             is_auto = 'Manual'
 
@@ -384,8 +384,6 @@ def index():
         images = request.files.getlist('image')
         for img in images:
             add_img(img)
-        return redirect('/')
-    
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
     return render_template('index.html', images=images, user=user)
 
