@@ -255,7 +255,7 @@ h3 {
 .margin-top {
   margin-top: 1rem;
 }
-.btn {
+.btn, a.btn, button.btn {
   margin: 5px;
   color: white;
   background-color: transparent;
@@ -425,12 +425,10 @@ h3 {
   margin: 0;
   font-size: 1.7vh;
 }
-.account-btns .btn {
+.account-btns {
   width: 100%;
   font-size: 2vh;
   padding: 1.2vh 0;
-}
-.account-btns {
   margin-bottom: 2vh;
 }
 .account-form {
