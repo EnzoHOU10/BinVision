@@ -375,7 +375,7 @@ def add_img(img):
     else:
         return "Format de fichier non supporté", 400
     
-@app.route('/admin', methods=['GET', 'POST'])
+@app.route('/', methods=['GET', 'POST'])
 def index():
     user = None
     if 'user_id' in session:
@@ -389,16 +389,14 @@ def index():
 
 @app.route('/dashboard')
 def dashboard():
-    user = None
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-
     images = TrashImage.query.all()
+
     total_images = len(images)
     pleines = sum(1 for img in images if img.annotation == 'Pleine')
     vides = sum(1 for img in images if img.annotation == 'Vide')
     sizes = [img.filesize_kb for img in images]
     annotations = [img.annotation for img in images]
+
     r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
     g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
     b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
@@ -412,15 +410,14 @@ def dashboard():
         annotations=annotations,
         r_values=r_values,
         g_values=g_values,
-        b_values=b_values,
-        user=user 
+        b_values=b_values
     )
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/home', methods=['GET', 'POST'])
 def home():
     user = None
     if 'user_id' in session:
@@ -434,7 +431,7 @@ def home():
                 update_rule(name, value)
         settings.use_auto_rules = 'use_auto_rules' in request.form
         db.session.commit()
-        return redirect('/')
+        return redirect('/home')
     
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()

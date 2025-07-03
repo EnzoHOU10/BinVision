@@ -46,7 +46,7 @@
         />
       </div>
       <br />
-      <a href="/"><strong>Home</strong></a>
+      <a href="/home"><strong>Home</strong></a>
       <a href="/predict">Pleine/Vide</a>
       {% if user and user.role == 'admin' %}
       <a href="/admin">Settings</a>
@@ -88,15 +88,93 @@
         </button>
       </div>
     </div>
-
-    <div class="seuils" style="display: none">
-      <!-- ... Ton formulaire de réglage IA reste inchangé ... -->
+    <div class="seuils">
+      <h2>Modifier les règles de classification</h2>
+      <form method="POST">
+        {% for rule in rules %}
+        <label for="{{ rule.name }}">{{ rule.name }}</label>
+        <input
+          type="number"
+          step="0.01"
+          name="{{ rule.name }}"
+          value="{{ rule.value }}"
+        />
+        <br />
+        {% endfor %}
+        <button type="submit">Enregistrer</button>
+        <label for="use_auto_rules">Utiliser les règles automatiques :</label>
+        <input
+          type="checkbox"
+          name="use_auto_rules"
+          {%
+          if
+          use_auto_rules
+          %}checked{%
+          endif
+          %}
+        />
+      </form>
+      <h3>Règles actuelles :</h3>
+      <ul>
+        {% if seuils %} {% for seuil_key,seuil_value in seuils.items() %}
+        <label for="{{ seuil_key }}">{{ seuil_key }}</label>
+        {% for val in seuil_value %}
+        <input
+          type="number"
+          step="0.01"
+          name="{{ seuil_key }}"
+          value="{{ val }}"
+        />
+        {% endfor %}
+        <br />
+        {% endfor %} {% else %}
+        <p>Pas de poubelle enregistré.</p>
+        {% endif %}
+      </ul>
+      <h3>Règles Plein</h3>
+      <ul>
+        {% if seuils_plein %} {% for seuil_plein_key, seuil_plein_value in
+        seuils_plein.items() %}
+        <label for="{{ seuil_plein_key }}">{{ seuil_plein_key }}</label>
+        {% for val in seuil_plein_value %}
+        <input
+          type="number"
+          step="0.01"
+          name="{{ seuil_plein_key }}"
+          value="{{ val }}"
+        />
+        {% endfor %}
+        <br />
+        {% endfor %} {% else %}
+        <p>Pas de poubelle pleine enregistré.</p>
+        {% endif %}
+      </ul>
+      <h3>Règles Vide</h3>
+      <ul>
+        {% if seuils_vide %} {% for seuil_vide_key, seuil_vide_value in
+        seuils_vide.items() %}
+        <label for="{{ seuil_vide_key }}">{{ seuil_vide_key }}</label>
+        {% for val in seuil_vide_value %}
+        <input
+          type="number"
+          step="0.01"
+          name="{{ seuil_vide_key }}"
+          value="{{ val }}"
+        />
+        {% endfor %}
+        <br />
+        {% endfor %} {% else %}
+        <p>Pas de poubelle vide enregistré.</p>
+        {% endif %}
+      </ul>
+      {% with messages = get_flashed_messages(with_categories=true) %} {% for
+      category, message in messages %}
+      <p style="color: green">{{ message }}</p>
+      {% endfor %} {% endwith %}
       <div class="text-center margin-top">
         <button class="btn" onclick="hideSeuils()">Retour</button>
       </div>
     </div>
-
-    <!-- Scripts -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="../static/js/script.js"></script>
     <script
@@ -203,6 +281,7 @@
           }
         });
       }
+
       let userPosition = null;
     </script>
   </body>
