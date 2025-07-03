@@ -389,6 +389,9 @@ def index():
 
 @app.route('/dashboard')
 def dashboard():
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
     images = TrashImage.query.all()
 
     total_images = len(images)
@@ -410,7 +413,8 @@ def dashboard():
         annotations=annotations,
         r_values=r_values,
         g_values=g_values,
-        b_values=b_values
+        b_values=b_values,
+        user=user
     )
 
 @app.route('/uploads/<filename>')
