@@ -7,3 +7,4 @@ opencv-python
 matplotlib
 mysql-connector-python
 datetime
+scikit-image

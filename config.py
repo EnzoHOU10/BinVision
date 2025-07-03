@@ -1,6 +1,6 @@
 # config.py
 DB_USERNAME = 'root'
-DB_PASSWORD = ''
+DB_PASSWORD = 'djamel10'
 DB_HOST = 'localhost'
 DB_NAME = 'db_binvision'
 

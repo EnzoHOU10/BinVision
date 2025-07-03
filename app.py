@@ -1,56 +1,129 @@
-import os
-import io
-import base64
-import random
-from datetime import datetime
-
-from flask import Flask, render_template, request, redirect, send_from_directory
+from flask import Flask, render_template, request, redirect, session
+from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO
-
+import os
 from PIL import Image
 import numpy as np
 import cv2
-
-import matplotlib
-matplotlib.use('Agg')  # backend non‑interactif pour serveur
 import matplotlib.pyplot as plt
+import io
+import base64
+from flask import send_from_directory
+from flask_socketio import SocketIO, emit
+import random
+from datetime import datetime
+from skimage.filters import sobel
+from skimage.feature import local_binary_pattern
+from skimage.measure import shannon_entropy
+from werkzeug.security import generate_password_hash, check_password_hash
 
-# ---------------------------
-# Machine‑Learning imports
-# ---------------------------
-import pickle
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from sklearn.ensemble import GradientBoostingClassifier
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-# ---------------------------
-# Configuration
-# ---------------------------
-from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
-
-UPLOAD_FOLDER = "uploads"
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
-MODEL_PATH = "model.pkl"
-
-# ---------------------------
-# Flask / SQLAlchemy / SocketIO
-# ---------------------------
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = SQLALCHEMY_TRACK_MODIFICATIONS
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-
-# crée le dossier upload s'il n'existe pas
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.secret_key = "projetbinvision2025"
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
 
-# ======================================================
-# Base de données
-# ======================================================
+def calculate_seuils_from_db():
+    seuils = {
+        "avg_color_r": [0,900,0],
+        "avg_color_g": [0,900,0],
+        "avg_color_b": [0,900,0],
+        "filesize_kb": [0,900,0],
+        "width": [0,900,0],
+        "height": [0,900,0],
+        "contrast": [0,900,0],
+        "saturation": [0,900,0],
+        "luminosity": [0,900,0],
+        "edge": [0,900,0],
+        "entropy": [0,900,0],
+        "texture_lbp": [0,900,0],
+        "edge_energy": [0,900,0]
+    }
+    seuils_plein = {
+        "avg_color_r": [0,900,0],
+        "avg_color_g": [0,900,0],
+        "avg_color_b": [0,900,0],
+        "filesize_kb": [0,900,0],
+        "width": [0,900,0],
+        "height": [0,900,0],
+        "contrast": [0,900,0],
+        "saturation": [0,900,0],
+        "luminosity": [0,900,0],
+        "edge": [0,900,0],
+        "entropy": [0,900,0],
+        "texture_lbp": [0,900,0],
+        "edge_energy": [0,900,0]
+    }
+    seuils_vide = {
+        "avg_color_r": [0,900,0],
+        "avg_color_g": [0,900,0],
+        "avg_color_b": [0,900,0],
+        "filesize_kb": [0,900,0],
+        "width": [0,900,0],
+        "height": [0,900,0],
+        "contrast": [0,900,0],
+        "saturation": [0,900,0],
+        "luminosity": [0,900,0],
+        "edge": [0,900,0],
+        "entropy": [0,900,0],
+        "texture_lbp": [0,900,0],
+        "edge_energy": [0,900,0]
+    }
+    rules = ClassificationRule.query.all()
+    images = TrashImage.query.all()
+    cpt=0
+    cpt_plein = 0
+    cpt_vide = 0
+    for image in images:
+        if image.type == 'Manual':
+            cpt+=1
+            if image.annotation == 'Pleine':
+                cpt_plein += 1
+            else:
+                cpt_vide += 1
+            for rule in rules:
+                seuils[rule.name][0] += getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) < seuils[rule.name][1]:
+                    seuils[rule.name][1] = getattr(image, rule.name, None)
+                if getattr(image, rule.name, None) > seuils[rule.name][2]:
+                    seuils[rule.name][2] = getattr(image, rule.name, None)
+                if image.annotation == 'Pleine':
+                    seuils_plein[rule.name][0] += getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) < seuils_plein[rule.name][1]:
+                        seuils_plein[rule.name][1] = getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) > seuils_plein[rule.name][2]:
+                        seuils_plein[rule.name][2] = getattr(image, rule.name, None)
+                else:
+                    seuils_vide[rule.name][0] += getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) < seuils_vide[rule.name][1]:
+                        seuils_vide[rule.name][1] = getattr(image, rule.name, None)
+                    if getattr(image, rule.name, None) > seuils_vide[rule.name][2]:
+                        seuils_vide[rule.name][2] = getattr(image, rule.name, None)
+    if cpt > 0:
+        for rule in rules:
+                seuils[rule.name][0] = seuils[rule.name][0] / cpt
+        if cpt_plein > 0 and cpt_vide > 0:
+            for rule in rules:
+                    seuils_plein[rule.name][0] = seuils_plein[rule.name][0] / cpt_plein
+            for rule in rules:
+                    seuils_vide[rule.name][0] = seuils_vide[rule.name][0] / cpt_vide
+            return seuils, seuils_plein, seuils_vide
+        elif cpt_plein > 0 and cpt_vide == 0:
+            for rule in rules:
+                seuils_plein[rule.name][0] = seuils_plein[rule.name][0] / cpt_plein
+            return seuils, seuils_plein, None
+        else:
+            for rule in rules:
+                seuils_vide[rule.name][0] = seuils_vide[rule.name][0] / cpt_vide
+            return seuils, None, seuils_vide
+    else:
+        return None, None, None
+
 class TrashImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(150), nullable=False)
@@ -63,108 +136,116 @@ class TrashImage(db.Model):
     avg_color_r = db.Column(db.Integer)
     avg_color_g = db.Column(db.Integer)
     avg_color_b = db.Column(db.Integer)
-    contrast = db.Column(db.Float)
+    contrast = db.Column(db.Integer)
     saturation = db.Column(db.Float)
-    luminance = db.Column(db.Float)
-    edge_density = db.Column(db.Float)
-    type = db.Column(db.String(10), nullable=True)  # "Manual" ou "Auto"
+    luminosity = db.Column(db.Float)
+    edge = db.Column(db.Float)
+    entropy = db.Column(db.Float, nullable=True)
+    texture_lbp = db.Column(db.Float, nullable=True)
+    edge_energy = db.Column(db.Float, nullable=True)
+    type = db.Column(db.String(10), nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
-
-class ClassificationRule(db.Model):  # Ancienne heuristique (encore utilisée en secours)
+    
+class ClassificationRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.Float, nullable=False)
 
 class Settings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    use_auto_rules = db.Column(db.Boolean, default=True)  # si True, on ré‑entraîne automatiquement
+    use_auto_rules = db.Column(db.Boolean, default=True)
 
-# ======================================================
-# Utilitaires divers
-# ======================================================
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='user')
 
-def allowed_file(filename: str) -> bool:
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+with app.app_context():
+    db.create_all()
+    seuils = {
+        "avg_color_r": 100,
+        "avg_color_g": 100,
+        "avg_color_b": 100,
+        "filesize_kb": 500,
+        "width": 100,
+        "height": 100,
+        "contrast": 0.05,
+        "saturation": 0.05,
+        "luminosity": 0.05,
+        "edge": 0.05,
+        "entropy": 5.0,
+        "texture_lbp": 0.5,
+        "edge_energy": 1000.0
 
+    }
+    for name, value in seuils.items():
+        if ClassificationRule.query.filter_by(name=name).first() is None:
+            db.session.add(ClassificationRule(name=name, value=value))
+        if Settings.query.first() is None:
+            db.session.add(Settings(use_auto_rules=True))
+            db.session.commit()
+    db.session.commit()
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def extract_features(image_path):
-    """Retourne toutes les features numériques exploitées par le modèle"""
-    size = os.path.getsize(image_path) / 1024  # kB
+    filesize_kb = os.path.getsize(image_path) / 1024
 
-    img = Image.open(image_path).convert("RGB")
-    width, height = img.size
-    np_img = np.array(img)
+    # Chargement OpenCV
+    img_rgb = Image.open(image_path).convert('RGB')
+    width, height = img_rgb.size
 
-    # Moyennes RGB
-    r, g, b = np_img[:, :, 0].mean(), np_img[:, :, 1].mean(), np_img[:, :, 2].mean()
+    # Composantes couleurs
+    img_np = np.array(img_rgb)
+    r, g, b = int(np.mean(img_np[:, :, 0])), int(np.mean(img_np[:, :, 1])), int(np.mean(img_np[:, :, 2]))
 
-    # Luminance, contraste, densité de contours
-    gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
-    luminance_array = 0.2126 * np_img[:, :, 0] + 0.7152 * np_img[:, :, 1] + 0.0722 * np_img[:, :, 2]
-    luminance = luminance_array.mean()
-    contrast = gray.std()
+    #luminosité
+    luminosity = 0.299 * r + 0.587 * g + 0.114 * b
 
-    # Canny adaptatif
-    v = np.median(gray)
-    lower = int(max(0, 0.66 * v))
-    upper = int(min(255, 1.33 * v))
-    edges = cv2.Canny(gray, lower, upper)
-    edge_density = np.sum(edges > 0) / (width * height)
+    #saturation
+    rgb_mean = [r, g, b]
+    saturation = (max(rgb_mean) - min(rgb_mean)) / (sum(rgb_mean) + 1e-6)
 
-    # Saturation moyenne (HSV)
-    hsv = cv2.cvtColor(np_img, cv2.COLOR_RGB2HSV)
-    saturation = hsv[:, :, 1].mean()
+    # Histogramme des couleurs
+    hist_r = (np.histogram(img_np[:, :, 0], bins=256, range=(0, 256))[0]).tolist()
+    hist_g = (np.histogram(img_np[:, :, 1], bins=256, range=(0, 256))[0]).tolist()
+    hist_b = (np.histogram(img_np[:, :, 2], bins=256, range=(0, 256))[0]).tolist()
+    
+    # Contrast
+    contrast = int(img_np.max() - img_np.min())
+
+    # Détection de contours
+    img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(img_gray, 50, 150)
+    edge = np.sum(edges > 0)
+    
+    # Histogramme de luminance
+    hist_luminance = (np.histogram(img_gray, bins=256, range=(0, 256))[0]).tolist()
+
+    # Entropie (informations)
+    entropy = shannon_entropy(img_gray)
+
+    # Texture par LBP
+    lbp = local_binary_pattern(img_gray, P=8, R=1.0, method="uniform")
+    texture_lbp = lbp.std()
+
+    # Énergie des bords (via Sobel)
+    sobel_edges = sobel(img_gray)
+    edge_energy = np.sum(sobel_edges ** 2)
 
     return (
-        width,
-        height,
-        float(size),
-        int(r),
-        int(g),
-        int(b),
-        float(contrast),
-        float(saturation),
-        float(luminance),
-        float(edge_density),
+        width, height, float(filesize_kb),
+        int(r), int(g), int(b),
+        float(contrast), float(saturation), float(luminosity),
+        float(edge), float(entropy), float(texture_lbp), float(edge_energy)
     )
 
-# ======================================================
-# Heuristique d'origine (fallback)
-# ======================================================
-
-DEFAULT_RULES = {
-    "avg_color_r": 100,
-    "avg_color_g": 100,
-    "avg_color_b": 100,
-    "filesize_kb": 500,
-    "width": 100,
-    "height": 100,
-    "contrast": 0.05,
-    "saturation": 0.05,
-    "luminance": 0.05,
-    "edge_density": 0.05,
-}
-
-
-def get_rule(name, default=0):
-    rule = ClassificationRule.query.filter_by(name=name).first()
-    return rule.value if rule else default
-
-
-def heuristic_classify_image(
-    avg_r,
-    filesize_kb,
-    avg_g,
-    avg_b,
-    width,
-    height,
-    contrast,
-    saturation,
-    luminance,
-    edge_density,
-):
-    # Récupération des seuils stockés
+def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy):
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     r_thresh = get_rule("avg_color_r")
     g_thresh = get_rule("avg_color_g")
     b_thresh = get_rule("avg_color_b")
@@ -175,217 +256,95 @@ def heuristic_classify_image(
     saturation_thresh = get_rule("saturation")
     luminance_thresh = get_rule("luminance")
     edge_density_thresh = get_rule("edge_density")
-
+    entropy_thresh = get_rule("entropy")
+    texture_thresh = get_rule("texture_lbp")
+    energy_thresh = get_rule("edge_energy")
     score = 0
+    if height > height_thresh:
+        score += 2
+    if width > width_thresh:
+        score += 1
+    if filesize_kb > filesize_thresh:
+        score += 2
+    if edge > edge_density_thresh:
+        score += 2
+    if contrast > contrast_thresh:
+        score += 1
+    if entropy > entropy_thresh:
+        score += 1
+    if edge_energy > energy_thresh:
+        score += 1
+    if saturation < saturation_thresh:
+        score += 1
+    if luminosity < luminance_thresh:
+        score += 1
     if avg_r < r_thresh:
         score += 1
     if avg_g < g_thresh:
         score += 1
     if avg_b < b_thresh:
         score += 1
-    if height > height_thresh:
-        score += 1
-    if edge_density > edge_density_thresh:
-        score += 2
-    if contrast > contrast_thresh:
-        score += 1
-    if saturation < saturation_thresh:
-        score += 1
-    if luminance < luminance_thresh:
-        score += 1
-    if filesize_kb > filesize_thresh:
-        score += 3
-    if avg_r < r_thresh and saturation < saturation_thresh:
+    if texture_lbp < texture_thresh:
         score += 1
 
-    return "Pleine" if score >= 5 else "Vide"
+    def in_range(val, minv, maxv):
+        return minv <= val <= maxv
+    
+    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge), ('entropy', entropy), ('texture_lbp', texture_lbp), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
+        plein_min, plein_max = seuils_plein[name][1], seuils_plein[name][2]
+        vide_min, vide_max = seuils_vide[name][1], seuils_vide[name][2]
+        if in_range(val, plein_min, plein_max) and not in_range(val, vide_min, vide_max):
+            score += 1  # fort indice "Pleine"
+        if not in_range(val, plein_min, plein_max) and in_range(val, vide_min, vide_max):
+            score -= 1
 
-# ======================================================
-# Machine‑learning tabulaire
-# ======================================================
-
-def fetch_dataset():
-    """Récupère toutes les images annotées manuellement (Pleine / Vide) et renvoie un DataFrame"""
-    data = TrashImage.query.filter(
-        TrashImage.type == "Manual", TrashImage.annotation.in_(["Pleine", "Vide"])
-    ).all()
-    rows = [
-        {
-            "avg_color_r": img.avg_color_r,
-            "avg_color_g": img.avg_color_g,
-            "avg_color_b": img.avg_color_b,
-            "filesize_kb": img.filesize_kb,
-            "width": img.width,
-            "height": img.height,
-            "contrast": img.contrast,
-            "saturation": img.saturation,
-            "luminance": img.luminance,
-            "edge_density": img.edge_density,
-            "label": 1 if img.annotation == "Pleine" else 0,
-        }
-        for img in data
-    ]
-    return pd.DataFrame(rows)
+    # Décision finale : seuil à ajuster selon tes tests (ex : >=7)
+    return "Pleine" if score >= 8 else "Vide"
 
 
-def train_and_save():
-    """(Ré)‑entraîne le modèle, sauvegarde sur disque et renvoie la précision de validation."""
-    df = fetch_dataset()
-    if df.empty or df["label"].nunique() < 2:
-        return 0.0  # pas assez de données
-
-    X = df.drop("label", axis=1).values
-    y = df["label"].values
-
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    model = GradientBoostingClassifier(random_state=42)
-    model.fit(X_train, y_train)
-
-    val_preds = model.predict(X_val)
-    acc = accuracy_score(y_val, val_preds)
-
-    with open(MODEL_PATH, "wb") as f:
-        pickle.dump(model, f)
-
-    return acc
 
 
-def load_model():
-    if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, "rb") as f:
-            return pickle.load(f)
-    return None
+def get_rule(name, default=0):
+    rule = ClassificationRule.query.filter_by(name=name).first()
+    return rule.value if rule else default
 
-# Modèle chargé en mémoire (global)
-model = None
-
-# ======================================================
-# Classification unique exposée au reste de l'appli
-# ======================================================
-
-def classify_image(
-    avg_r,
-    filesize_kb,
-    avg_g,
-    avg_b,
-    width,
-    height,
-    contrast,
-    saturation,
-    luminance,
-    edge_density,
-):
-    """Décide Pleine/Vide en privilégiant le modèle ML s'il existe."""
-    global model
-    if model is not None:
-        import numpy as np
-
-        X = np.array(
-            [
-                [
-                    avg_r,
-                    avg_g,
-                    avg_b,
-                    filesize_kb,
-                    width,
-                    height,
-                    contrast,
-                    saturation,
-                    luminance,
-                    edge_density,
-                ]
-            ]
-        )
-        proba = model.predict_proba(X)[0, 1]
-        return "Pleine" if proba >= 0.5 else "Vide"
-
-    # fallback heuristique
-    return heuristic_classify_image(
-        avg_r,
-        filesize_kb,
-        avg_g,
-        avg_b,
-        width,
-        height,
-        contrast,
-        saturation,
-        luminance,
-        edge_density,
-    )
-
-# ======================================================
-# Initialisation de la base + règles par défaut + modèle
-# ======================================================
-with app.app_context():
-    db.create_all()
-
-    # Règles par défaut si la table est vide
-    for name, value in DEFAULT_RULES.items():
-        if ClassificationRule.query.filter_by(name=name).first() is None:
-            db.session.add(ClassificationRule(name=name, value=value))
-
-    if Settings.query.first() is None:
-        db.session.add(Settings(use_auto_rules=True))
-
+def update_rule(name, value):
+    rule = ClassificationRule.query.filter_by(name=name).first()
+    if rule:
+        rule.value = value
+    else:
+        rule = ClassificationRule(name=name, value=value)
+        db.session.add(rule)
     db.session.commit()
-
-    # Chargement modèle ML
-    model = load_model()
-
-# ======================================================
-# Helpers applicatifs
-# ======================================================
 
 def add_img(img):
     if img and allowed_file(img.filename):
         filename = img.filename
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         img.save(filepath)
+        link = filepath
+        # Remplace l'appel par :
+        (width, height, size, r, g, b, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy) = extract_features(filepath)
+        # Puis ajoute ces lignes dans new_image :
+        entropy=entropy
+        texture_lbp=texture_lbp
+        edge_energy=edge_energy
 
-        (
-            width,
-            height,
-            size,
-            r,
-            g,
-            b,
-            contrast,
-            saturation,
-            luminance,
-            edge_density,
-        ) = extract_features(filepath)
-
-        auto_annotation = classify_image(
-            r,
-            size,
-            g,
-            b,
-            width,
-            height,
-            contrast,
-            saturation,
-            luminance,
-            edge_density,
-        )
-
-        annotation = request.form.get("annotation")
-        if annotation not in ["Pleine", "Vide", "pleine", "vide"]:
-            img_type = "Auto"
-            annotation = auto_annotation
-        else:
-            img_type = "Manual"
-
-        # coordonnées aléatoires (à remplacer par vraies valeurs si dispo)
+        annotation = request.form.get('annotation')
         lat = random.uniform(48.5, 49)
-        lng = random.uniform(2, 2.6)
+        lng = random.uniform(2,2.6)
+        
+        
+        if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
+            is_auto = annotation
+            annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy)
+        else:
+            is_auto = 'Manual'
 
         new_image = TrashImage(
             filename=filename,
-            link=filepath,
-            annotation=annotation.capitalize(),
+            link=link,
+            annotation=annotation.capitalize(),  # Majuscule
             width=width,
             height=height,
             filesize_kb=round(size, 2),
@@ -394,210 +353,162 @@ def add_img(img):
             avg_color_b=b,
             contrast=contrast,
             saturation=saturation,
-            luminance=luminance,
-            edge_density=edge_density,
-            type=img_type,
+            luminosity=luminosity,
+            edge=edge,
+            entropy=entropy,
+            texture_lbp=texture_lbp,
+            edge_energy=edge_energy,
+            type=is_auto,
             lat=lat,
-            lng=lng,
+            lng=lng
         )
         db.session.add(new_image)
         db.session.commit()
-
-        # Ré‑entraîne automatiquement si l'option est activée et qu'il s'agit d'une nouvelle annotation manuelle
+        
         settings = Settings.query.first()
-        global model
-        if settings and settings.use_auto_rules and img_type == "Manual":
-            acc = train_and_save()
-            model = load_model()
-            print(f"Modèle ré‑entraîné automatiquement (val_acc={acc*100:.2f}%)")
+        if settings.use_auto_rules:
+            seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+            if seuils_plein and seuils_vide:
+                for rule in ClassificationRule.query.all():
+                    if rule.name in seuils_plein and rule.name in seuils_vide:
+                        update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
     else:
         return "Format de fichier non supporté", 400
-
-# ======================================================
-# Routes Flask
-# ======================================================
-
-@app.route("/", methods=["GET", "POST"])
+    
+@app.route('/admin', methods=['GET', 'POST'])
 def index():
-    if request.method == "POST":
-        images = request.files.getlist("image")
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+    if request.method == 'POST':
+        images = request.files.getlist('image')
         for img in images:
             add_img(img)
-        return redirect("/")
-
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template("index.html", images=images)
+    return render_template('index.html', images=images, user=user)
 
-
-@app.route("/stats")
-def stats():
-    pleines = TrashImage.query.filter_by(annotation="Pleine").count()
-    vides = TrashImage.query.filter_by(annotation="Vide").count()
-
-    fig, ax = plt.subplots()
-    ax.bar(["Pleine", "Vide"], [pleines, vides], color=["red", "green"])
-    ax.set_title("Distribution des annotations")
-
-    img_buf = io.BytesIO()
-    fig.savefig(img_buf, format="png")
-    img_buf.seek(0)
-    plot_url = base64.b64encode(img_buf.getvalue()).decode()
-
-    return f'<img src="data:image/png;base64,{plot_url}" />'
-
-
-@app.route("/dashboard")
+@app.route('/dashboard')
 def dashboard():
-    data = TrashImage.query.all()
-    labels = [img.filename for img in data]
-    values = [img.filesize_kb for img in data]
-    annotations = [img.annotation for img in data]
-    return render_template("dashboard.html", labels=labels, values=values, annotations=annotations)
+    images = TrashImage.query.all()
 
+    total_images = len(images)
+    pleines = sum(1 for img in images if img.annotation == 'Pleine')
+    vides = sum(1 for img in images if img.annotation == 'Vide')
+    sizes = [img.filesize_kb for img in images]
+    annotations = [img.annotation for img in images]
 
-@app.route("/uploads/<filename>")
+    r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
+    g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
+    b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
+
+    return render_template(
+        "dashboard.html",
+        total_images=total_images,
+        pleines=pleines,
+        vides=vides,
+        sizes=sizes,
+        annotations=annotations,
+        r_values=r_values,
+        g_values=g_values,
+        b_values=b_values
+    )
+
+@app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-
-@app.route("/home", methods=["GET", "POST"])
+@app.route('/', methods=['GET', 'POST'])
 def home():
-    settings = Settings.query.first()
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
 
-    if request.method == "POST":
+    settings = Settings.query.first()
+    if request.method == 'POST':
         for name in request.form:
             if name != "use_auto_rules":
                 value = float(request.form[name])
-                rule = ClassificationRule.query.filter_by(name=name).first()
-                if rule:
-                    rule.value = value
-        settings.use_auto_rules = "use_auto_rules" in request.form
+                update_rule(name, value)
+        settings.use_auto_rules = 'use_auto_rules' in request.form
         db.session.commit()
-        return redirect("/home")
-
+        return redirect('/home')
+    
     rules = ClassificationRule.query.all()
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     images = TrashImage.query.all()
+    images_conv=[]
+    for img in images:
+        images_conv.append({
+            'id': img.id,
+            'lat': img.lat,
+            'lng': img.lng,
+        })
     return render_template(
-        "home.html",
-        rules=rules,
-        images=images,
-        use_auto_rules=settings.use_auto_rules if settings else False,
+        'home.html', rules=rules,
+        seuils=seuils,
+        seuils_plein=seuils_plein,
+        seuils_vide=seuils_vide,
+        images=images_conv,
+        use_auto_rules=settings.use_auto_rules,
+        user=user
     )
 
-
-@app.route("/predict", methods=["GET", "POST"])
+@app.route('/predict', methods=['GET', 'POST'])
 def user():
-    if request.method == "POST":
-        images = request.files.getlist("image")
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+    if request.method == 'POST':
+        images = request.files.getlist('image')
         for img in images:
             add_img(img)
-        return redirect("/predict")
-
+        return redirect('/predict')
+    
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template("user.html", images=images)
+    return render_template('user.html', images=images, user=user)
 
+from flask import flash, session
 
-# -------------- ML utils exposés -------------
+@app.route('/account', methods=['GET', 'POST'])
+def account():
+    message = ""
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        action = request.form['action']
+        if action == "register":
+            if User.query.filter_by(username=username).first():
+                message = "Nom d'utilisateur déjà pris."
+            else:
+                hashed_pw = generate_password_hash(password)
+                user = User(username=username, password=hashed_pw)
+                db.session.add(user)
+                db.session.commit()
+                message = "Inscription réussie. Connectez-vous."
+        elif action == "login":
+            user = User.query.filter_by(username=username).first()
+            if user and check_password_hash(user.password, password):
+                session['user_id'] = user.id
+                return redirect('/account')
+            else:
+                message = "Identifiants incorrects."
+        user = None 
+    return render_template('account.html', message=message, user=user)
 
-@app.route("/train_model")
-def train_model_route():
-    acc = train_and_save()
-    global model
-    model = load_model()
-    return f"Modèle ré‑entraîné. Précision de validation : {acc*100:.2f}%"
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    return redirect('/account')
 
+socketio = SocketIO(app)
 
-# -------------- Évaluation -------------------
-
-def evaluer_precision():
-    images = TrashImage.query.filter(
-        TrashImage.annotation.in_(["Pleine", "Vide"]), TrashImage.type == "Manual"
-    ).all()
-    bonnes_preds = 0
-    total = len(images)
-
-    for img in images:
-        prediction = classify_image(
-            img.avg_color_r,
-            img.filesize_kb,
-            img.avg_color_g,
-            img.avg_color_b,
-            img.width,
-            img.height,
-            img.contrast,
-            img.saturation,
-            img.luminance,
-            img.edge_density,
-        )
-        if prediction == img.annotation:
-            bonnes_preds += 1
-
-    if total == 0:
-        return "Aucune image annotée pour évaluer la précision."
-    else:
-        precision = bonnes_preds / total
-        return f"Précision de l'IA : {precision * 100:.2f}% ({bonnes_preds}/{total} prédictions correctes)"
-
-
-@app.route("/evaluer_precision")
-def route_precision():
-    return evaluer_precision()
-
-
-# -------------- Tableau de confusion ---------
-
-from collections import Counter
-
-
-def tableau_confusion():
-    images = TrashImage.query.filter(
-        TrashImage.annotation.in_(["Pleine", "Vide"]), TrashImage.type == "Manual"
-    ).all()
-    confusion = Counter()
-
-    for img in images:
-        pred = classify_image(
-            img.avg_color_r,
-            img.filesize_kb,
-            img.avg_color_g,
-            img.avg_color_b,
-            img.width,
-            img.height,
-            img.contrast,
-            img.saturation,
-            img.luminance,
-            img.edge_density,
-        )
-        confusion[(img.annotation, pred)] += 1
-
-    return (
-        """Tableau de confusion :\n"
-        "Vérité terrain \\ Prédiction\n"
-        f"Pleine -> Pleine : {confusion[("Pleine", "Pleine")]}\n"
-        f"Pleine -> Vide   : {confusion[("Pleine", "Vide")]}\n"
-        f"Vide   -> Pleine : {confusion[("Vide", "Pleine")]}\n"
-        f"Vide   -> Vide   : {confusion[("Vide", "Vide")]}"""
-    )
-
-
-@app.route("/tableau_confusion")
-def route_tableau_confusion():
-    return tableau_confusion()
-
-# ======================================================
-# SocketIO temps‑réel
-# ======================================================
-
-@socketio.on("connect")
+@socketio.on('connect')
 def handle_connect():
     print("Client connecté")
-    images = TrashImage.query.all()
-    for img in images:
-        socketio.emit("update_marker", {"id": img.id, "lat": img.lat, "lng": img.lng})
 
-# ======================================================
-# Lancement
-# ======================================================
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     socketio.run(app, debug=True)
+    app.run(debug=True)

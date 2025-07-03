@@ -66,6 +66,12 @@ body {
   gap: 10px;
   margin-bottom: 20px;
 }
+.btnright {
+  position: fixed;
+  top: 20px;
+  right: 30px;
+  z-index: 1000;
+}
 .classification-buttons {
   display: flex;
   justify-content: center;
