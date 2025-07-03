@@ -246,46 +246,57 @@ def extract_features(image_path):
 
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy):
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    r_thresh = get_rule("avg_color_r")
+    g_thresh = get_rule("avg_color_g")
+    b_thresh = get_rule("avg_color_b")
+    filesize_thresh = get_rule("filesize_kb")
+    width_thresh = get_rule("width")
+    height_thresh = get_rule("height")
+    contrast_thresh = get_rule("contrast")
+    saturation_thresh = get_rule("saturation")
+    luminance_thresh = get_rule("luminance")
+    edge_density_thresh = get_rule("edge_density")
+    entropy_thresh = get_rule("entropy")
+    texture_thresh = get_rule("texture_lbp")
+    energy_thresh = get_rule("edge_energy")
     score = 0
-
-    if height > seuils['height'][0]:
+    if height > height_thresh:
         score += 2
-    if width > seuils['width'][0]:
+    if width > width_thresh:
         score += 1
-    if filesize_kb > seuils['filesize_kb'][0]:
+    if filesize_kb > filesize_thresh:
         score += 2
-    if edge > seuils['edge'][0]:
+    if edge > edge_density_thresh:
         score += 2
-    if contrast > seuils['contrast'][0]:
+    if contrast > contrast_thresh:
         score += 1
-    if entropy > seuils['entropy'][0]:
+    if entropy > entropy_thresh:
         score += 1
-    if edge_energy > seuils['edge_energy'][0]:
+    if edge_energy > energy_thresh:
         score += 1
-    if saturation < seuils['saturation'][0]:
+    if saturation < saturation_thresh:
         score += 1
-    if luminosity < seuils['luminosity'][0]:
+    if luminosity < luminance_thresh:
         score += 1
-    if avg_r < seuils['avg_color_r'][0]:
+    if avg_r < r_thresh:
         score += 1
-    if avg_g < seuils['avg_color_g'][0]:
+    if avg_g < g_thresh:
         score += 1
-    if avg_b < seuils['avg_color_b'][0]:
+    if avg_b < b_thresh:
         score += 1
-    if texture_lbp < seuils['texture_lbp'][0]:
+    if texture_lbp < texture_thresh:
         score += 1
 
     def in_range(val, minv, maxv):
         return minv <= val <= maxv
-    
-    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge), ('entropy', entropy), ('texture_lbp', texture_lbp), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
+    """    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge), ('entropy', entropy), ('texture_lbp', texture_lbp), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
         plein_min, plein_max = seuils_plein[name][1], seuils_plein[name][2]
         vide_min, vide_max = seuils_vide[name][1], seuils_vide[name][2]
         if in_range(val, plein_min, plein_max) and not in_range(val, vide_min, vide_max):
             score += 1  # fort indice "Pleine"
         if not in_range(val, plein_min, plein_max) and in_range(val, vide_min, vide_max):
             score -= 1
-
+    """
     # Décision finale : seuil à ajuster selon tes tests (ex : >=7)
     return "Pleine" if score >= 8 else "Vide"
 
