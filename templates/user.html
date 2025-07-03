@@ -38,6 +38,7 @@
         </div>
 
         <form method="POST" id="Form" enctype="multipart/form-data">
+          <input type="hidden" name="form_type" value="upload">
           <input
             type="file"
             id="input"
@@ -58,7 +59,11 @@
           <button class="btn" onclick="showDetails()">Voir</button>
         </div>
       </div>
-
+      <div class="">
+        <button class="btn" onclick="showSeuils()">
+          Ajuster l'IA
+        </button>
+      </div>
       <div class="details">
         <h3>Images enregistrées :</h4>
         <div class="table-responsive">
@@ -124,9 +129,78 @@
         </div>
       </div>
     </div>
-
+    <div class="seuils" style="display:none;">
+      <form method="POST" class="seuils-form">
+        <h2>Modifier les règles de classification</h2>
+        <input type="hidden" name="form_type" value="rules">
+        <div class="seuils-form-grid">
+          {% for rule in rules %}
+            <div class="seuils-form-group">
+              <label for="{{ rule.name }}">{{ rule.name }}</label>
+              <input
+                type="number"
+                step="0.01"
+                name="{{ rule.name }}"
+                value="{{ rule.value }}"
+              />
+            </div>
+          {% endfor %}
+        </div>
+        <button type="submit">Enregistrer</button>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="use_auto_rules" name="use_auto_rules" {% if use_auto_rules %}checked{% endif %}>
+          <label class="form-check-label" for="use_auto_rules">Utiliser les règles automatiques</label>
+        </div>
+      </form>
+      <div class="seuils-tables">
+        <div class="seuils-table">
+          <h3>Règles Plein</h3>
+          <table>
+            <thead>
+              <tr><th>Nom</th><th>Min</th><th>Max</th></tr>
+            </thead>
+            <tbody>
+              {% if seuils_plein %}
+                {% for seuil_plein_key, seuil_plein_value in seuils_plein.items() %}
+                  <tr>
+                    <td>{{ seuil_plein_key }}</td>
+                    <td>{{ seuil_plein_value[1] }}</td>
+                    <td>{{ seuil_plein_value[2] }}</td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="3">Pas de poubelle pleine enregistré.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        <div class="seuils-table">
+          <h3>Règles Vide</h3>
+          <table>
+            <thead>
+              <tr><th>Nom</th><th>Min</th><th>Max</th></tr>
+            </thead>
+            <tbody>
+              {% if seuils_vide %}
+                {% for seuil_vide_key, seuil_vide_value in seuils_vide.items() %}
+                  <tr>
+                    <td>{{ seuil_vide_key }}</td>
+                    <td>{{ seuil_vide_value[1] }}</td>
+                    <td>{{ seuil_vide_value[2] }}</td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="3">Pas de poubelle vide enregistré.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <button type="button" class="btn" onclick="hideSeuils()">Retour</button>
+        {% with messages = get_flashed_messages(with_categories=true) %} {% for category, message in messages %}
+        <p style="color: #aaffaa; margin-top:1vh;">{{ message }}</p>
+        {% endfor %} {% endwith %}
+    </div>
     <script src="../static/js/script.js"></script>
-    <script>
-    </script>
   </body>
 </html>

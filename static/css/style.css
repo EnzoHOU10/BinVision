@@ -3,7 +3,7 @@ body {
   height: 100vh;
   overflow: hidden;
   display: flex;
-  background: radial-gradient(circle at 57% 50%, rgba(0, 0, 0) 10%, #22b573);
+  background: radial-gradient(circle at 58% 50%, rgba(0, 0, 0) 10%, #22b573);
   color: white;
 }
 .sidebar {
@@ -90,6 +90,116 @@ h3 {
 .details,
 .seuils {
   display: none;
+}
+.seuils {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3vw;
+  max-width: 100vw;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4vh 2vw 4vh 2vw;
+}
+.seuils-form {
+  background: rgba(0,0,0,0.7);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(34,181,115,0.15);
+  padding: 2.5vh 2vw 2vh 2vw;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 260px;
+  max-width: 340px;
+  width: 30vw;
+  box-sizing: border-box;
+}
+.seuils-form h2 {
+  color: #aaffaa;
+  font-size: 2.2vh;
+  margin-bottom: 2vh;
+  text-align: left;
+  width: 100%;
+}
+.seuils-form label {
+  color: #aaffaa;
+  font-weight: 500;
+  margin-top: 1vh;
+}
+.seuils-form input[type="number"] {
+  background: #222;
+  color: #fff;
+  border: 1px solid #aaffaa;
+  border-radius: 6px;
+  margin-left: 8px;
+  margin-bottom: 0.5vh;
+  padding: 0.5vh 1vw;
+  width: 50%;
+}
+.seuils-form .btn, .seuils-form button[type="submit"] {
+  margin-top: 2vh;
+  width: 100%;
+  background: linear-gradient(90deg,#22b573,#aaffaa);
+  color: #222;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 1.2vh 0;
+}
+.seuils-form .btn:hover, .seuils-form button[type="submit"]:hover {
+  background: linear-gradient(90deg,#1e9c5a,#aaffaa);
+  color: #fff;
+}
+.seuils-form .form-check {
+  margin-top: 1.5vh;
+  margin-bottom: 1vh;
+}
+.seuils-tables {
+  display: flex;
+  flex-direction: row;
+  gap: 2vh;
+  width: 40vw;
+  box-sizing: border-box;
+}
+.seuils-table {
+  background: rgba(255,255,255,0.07);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(34,181,115,0.08);
+  padding: 1.5vh 1vw 1.5vh 1vw;
+  color: #fff;
+}
+.seuils-table h3 {
+  color: #aaffaa;
+  font-size: 1.7vh;
+  margin: 1vh;
+  text-align: center;
+}
+.seuils-table table {
+  width: 100%;
+  font-size: 1.5vh;
+  color: #fff;
+  border-collapse: collapse;
+}
+.seuils-table th, .seuils-table td {
+  padding: 0.3vh 0.5vw;
+  border-bottom: 1px solid #333;
+  text-align: left;
+}
+.seuils-table th {
+  color: #aaffaa;
+  font-weight: 600;
+  background: none;
+}
+.seuils-table tr:last-child td {
+  border-bottom: none;
+}
+.seuils-form, .seuils-tables, .seuils-table {
+  box-sizing: border-box;
+}
+.seuils-table table {
+  table-layout: fixed;
+  word-break: break-word;
 }
 .lightbox-container {
   display: none;

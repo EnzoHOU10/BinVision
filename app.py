@@ -194,49 +194,26 @@ def allowed_file(filename):
 
 def extract_features(image_path):
     filesize_kb = os.path.getsize(image_path) / 1024
-
-    # Chargement OpenCV
     img_rgb = Image.open(image_path).convert('RGB')
     width, height = img_rgb.size
-
-    # Composantes couleurs
     img_np = np.array(img_rgb)
     r, g, b = int(np.mean(img_np[:, :, 0])), int(np.mean(img_np[:, :, 1])), int(np.mean(img_np[:, :, 2]))
-
-    #luminosité
     luminosity = 0.299 * r + 0.587 * g + 0.114 * b
-
-    #saturation
     rgb_mean = [r, g, b]
     saturation = (max(rgb_mean) - min(rgb_mean)) / (sum(rgb_mean) + 1e-6)
-
-    # Histogramme des couleurs
     hist_r = (np.histogram(img_np[:, :, 0], bins=256, range=(0, 256))[0]).tolist()
     hist_g = (np.histogram(img_np[:, :, 1], bins=256, range=(0, 256))[0]).tolist()
     hist_b = (np.histogram(img_np[:, :, 2], bins=256, range=(0, 256))[0]).tolist()
-    
-    # Contrast
     contrast = int(img_np.max() - img_np.min())
-
-    # Détection de contours
     img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
     edges = cv2.Canny(img_gray, 50, 150)
     edge = np.sum(edges > 0)
-    
-    # Histogramme de luminance
     hist_luminance = (np.histogram(img_gray, bins=256, range=(0, 256))[0]).tolist()
-
-    # Entropie (informations)
     entropy = shannon_entropy(img_gray)
-
-    # Texture par LBP
     lbp = local_binary_pattern(img_gray, P=8, R=1.0, method="uniform")
     texture_lbp = lbp.std()
-
-    # Énergie des bords (via Sobel)
     sobel_edges = sobel(img_gray)
     edge_energy = np.sum(sobel_edges ** 2)
-
     return (
         width, height, float(filesize_kb),
         int(r), int(g), int(b),
@@ -423,23 +400,11 @@ def dashboard():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-
-# Route / devient l'ancien /home
 @app.route('/', methods=['GET', 'POST'])
 def home():
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
-
-    settings = Settings.query.first()
-    if request.method == 'POST':
-        for name in request.form:
-            if name != "use_auto_rules":
-                value = float(request.form[name])
-                update_rule(name, value)
-        settings.use_auto_rules = 'use_auto_rules' in request.form
-        db.session.commit()
-        return redirect('/')
     
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
@@ -457,7 +422,6 @@ def home():
         seuils_plein=seuils_plein,
         seuils_vide=seuils_vide,
         images=images_conv,
-        use_auto_rules=settings.use_auto_rules,
         user=user
     )
 
@@ -466,16 +430,37 @@ def user():
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
-    if request.method == 'POST':
-        images = request.files.getlist('image')
-        for img in images:
-            add_img(img)
-        return redirect('/predict')
-    
-    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template('user.html', images=images, user=user)
 
-from flask import flash, session
+    settings = Settings.query.first()
+    if request.method == 'POST':
+        form_type = request.form.get('form_type')
+        if form_type == 'rules':
+            for name in request.form:
+                if name not in ["use_auto_rules", "form_type"]:
+                    try:
+                        value = float(request.form[name])
+                        update_rule(name, value)
+                    except ValueError:
+                        continue
+            settings.use_auto_rules = 'use_auto_rules' in request.form
+            db.session.commit()
+            return redirect('/predict')
+        elif form_type == 'upload':
+            images = request.files.getlist('image')
+            for img in images:
+                add_img(img)
+            return redirect('/predict')
+
+    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
+    rules = ClassificationRule.query.all()
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    return render_template('user.html', rules=rules,
+        seuils=seuils,
+        seuils_plein=seuils_plein,
+        seuils_vide=seuils_vide, 
+        images=images, 
+        use_auto_rules=settings.use_auto_rules, 
+        user=user)
 
 @app.route('/account', methods=['GET', 'POST'])
 def account():
