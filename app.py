@@ -27,7 +27,168 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.secret_key = "projetbinvision2025"
 
 db = SQLAlchemy(app)
+socketio = SocketIO(app)
 
+class TrashImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(150), nullable=False)
+    link = db.Column(db.String(200), nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    annotation = db.Column(db.String(10), nullable=True)
+    width = db.Column(db.Integer)
+    height = db.Column(db.Integer)
+    filesize_kb = db.Column(db.Float)
+    avg_color_r = db.Column(db.Integer)
+    avg_color_g = db.Column(db.Integer)
+    avg_color_b = db.Column(db.Integer)
+    contrast = db.Column(db.Integer)
+    saturation = db.Column(db.Float)
+    luminosity = db.Column(db.Float)
+    edge = db.Column(db.Float)
+    entropy = db.Column(db.Float, nullable=True)
+    texture_lbp = db.Column(db.Float, nullable=True)
+    edge_energy = db.Column(db.Float, nullable=True)
+    type = db.Column(db.String(10), nullable=True)
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
+    
+class ClassificationRule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    value = db.Column(db.Float, nullable=False)
+
+class Settings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    use_auto_rules = db.Column(db.Boolean, default=True)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='user')
+
+def create_admin_account():
+    admin_username = "admin@binvision.com"
+    admin_password = "12345"
+    admin_role = "admin"
+    if not User.query.filter_by(username=admin_username).first():
+        hashed_pw = generate_password_hash(admin_password)
+        admin = User(username=admin_username, password=hashed_pw, role=admin_role)
+        db.session.add(admin)
+        db.session.commit()
+
+with app.app_context():
+    db.create_all()
+    seuils = {
+        "avg_color_r": 100,
+        "avg_color_g": 100,
+        "avg_color_b": 100,
+        "filesize_kb": 500,
+        "width": 100,
+        "height": 100,
+        "contrast": 0.05,
+        "saturation": 0.05,
+        "luminosity": 0.05,
+        "edge": 0.05,
+        "entropy": 5.0,
+        "texture_lbp": 0.5,
+        "edge_energy": 1000.0
+    }
+    for name, value in seuils.items():
+        if ClassificationRule.query.filter_by(name=name).first() is None:
+            db.session.add(ClassificationRule(name=name, value=value))
+        if Settings.query.first() is None:
+            db.session.add(Settings(use_auto_rules=True))
+            db.session.commit()
+    db.session.commit()
+    create_admin_account()
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_features(image_path):
+    filesize_kb = os.path.getsize(image_path) / 1024
+    img_rgb = Image.open(image_path).convert('RGB')
+    width, height = img_rgb.size
+    img_np = np.array(img_rgb)
+    r, g, b = int(np.mean(img_np[:, :, 0])), int(np.mean(img_np[:, :, 1])), int(np.mean(img_np[:, :, 2]))
+    luminosity = 0.299 * r + 0.587 * g + 0.114 * b
+    rgb_mean = [r, g, b]
+    saturation = (max(rgb_mean) - min(rgb_mean)) / (sum(rgb_mean) + 1e-6)
+    hist_r = (np.histogram(img_np[:, :, 0], bins=256, range=(0, 256))[0]).tolist()
+    hist_g = (np.histogram(img_np[:, :, 1], bins=256, range=(0, 256))[0]).tolist()
+    hist_b = (np.histogram(img_np[:, :, 2], bins=256, range=(0, 256))[0]).tolist()
+    contrast = int(img_np.max() - img_np.min())
+    img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(img_gray, 50, 150)
+    edge = np.sum(edges > 0)
+    hist_luminance = (np.histogram(img_gray, bins=256, range=(0, 256))[0]).tolist()
+    entropy = shannon_entropy(img_gray)
+    lbp = local_binary_pattern(img_gray, P=8, R=1.0, method="uniform")
+    texture_lbp = lbp.std()
+    sobel_edges = sobel(img_gray)
+    edge_energy = np.sum(sobel_edges ** 2)
+    return (
+        width, height, float(filesize_kb),
+        int(r), int(g), int(b),
+        float(contrast), float(saturation), float(luminosity),
+        float(edge), float(entropy), float(texture_lbp), float(edge_energy)
+    )
+
+def add_img(img):
+    if img and allowed_file(img.filename):
+        filename = img.filename
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        img.save(filepath)
+        link = filepath
+        (width, height, size, r, g, b, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy) = extract_features(filepath)
+        entropy=entropy
+        texture_lbp=texture_lbp
+        edge_energy=edge_energy
+        annotation = request.form.get('annotation')
+        lat = random.uniform(48.5, 49)
+        lng = random.uniform(2,2.6)
+        
+        if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
+            is_auto = annotation
+            annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy)
+        else:
+            is_auto = 'Manual'
+
+        new_image = TrashImage(
+            filename=filename,
+            link=link,
+            annotation=annotation.capitalize(),
+            width=width,
+            height=height,
+            filesize_kb=round(size, 2),
+            avg_color_r=r,
+            avg_color_g=g,
+            avg_color_b=b,
+            contrast=contrast,
+            saturation=saturation,
+            luminosity=luminosity,
+            edge=edge,
+            entropy=entropy,
+            texture_lbp=texture_lbp,
+            edge_energy=edge_energy,
+            type=is_auto,
+            lat=lat,
+            lng=lng
+        )
+        db.session.add(new_image)
+        db.session.commit()
+
+        settings = Settings.query.first()
+        if settings.use_auto_rules:
+            seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+            if seuils_plein and seuils_vide:
+                for rule in ClassificationRule.query.all():
+                    if rule.name in seuils_plein and rule.name in seuils_vide:
+                        update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
+    else:
+        return "Format de fichier non supporté", 400
+    
 def calculate_seuils_from_db():
     seuils = {
         "avg_color_r": [0,900,0],
@@ -123,104 +284,7 @@ def calculate_seuils_from_db():
             return seuils, None, seuils_vide
     else:
         return None, None, None
-
-class TrashImage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(150), nullable=False)
-    link = db.Column(db.String(200), nullable=False)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
-    annotation = db.Column(db.String(10), nullable=True)
-    width = db.Column(db.Integer)
-    height = db.Column(db.Integer)
-    filesize_kb = db.Column(db.Float)
-    avg_color_r = db.Column(db.Integer)
-    avg_color_g = db.Column(db.Integer)
-    avg_color_b = db.Column(db.Integer)
-    contrast = db.Column(db.Integer)
-    saturation = db.Column(db.Float)
-    luminosity = db.Column(db.Float)
-    edge = db.Column(db.Float)
-    entropy = db.Column(db.Float, nullable=True)
-    texture_lbp = db.Column(db.Float, nullable=True)
-    edge_energy = db.Column(db.Float, nullable=True)
-    type = db.Column(db.String(10), nullable=True)
-    lat = db.Column(db.Float, nullable=True)
-    lng = db.Column(db.Float, nullable=True)
     
-class ClassificationRule(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
-    value = db.Column(db.Float, nullable=False)
-
-class Settings(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    use_auto_rules = db.Column(db.Boolean, default=True)
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default='user')
-
-with app.app_context():
-    db.create_all()
-    seuils = {
-        "avg_color_r": 100,
-        "avg_color_g": 100,
-        "avg_color_b": 100,
-        "filesize_kb": 500,
-        "width": 100,
-        "height": 100,
-        "contrast": 0.05,
-        "saturation": 0.05,
-        "luminosity": 0.05,
-        "edge": 0.05,
-        "entropy": 5.0,
-        "texture_lbp": 0.5,
-        "edge_energy": 1000.0
-
-    }
-    for name, value in seuils.items():
-        if ClassificationRule.query.filter_by(name=name).first() is None:
-            db.session.add(ClassificationRule(name=name, value=value))
-        if Settings.query.first() is None:
-            db.session.add(Settings(use_auto_rules=True))
-            db.session.commit()
-    db.session.commit()
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def extract_features(image_path):
-    filesize_kb = os.path.getsize(image_path) / 1024
-    img_rgb = Image.open(image_path).convert('RGB')
-    width, height = img_rgb.size
-    img_np = np.array(img_rgb)
-    r, g, b = int(np.mean(img_np[:, :, 0])), int(np.mean(img_np[:, :, 1])), int(np.mean(img_np[:, :, 2]))
-    luminosity = 0.299 * r + 0.587 * g + 0.114 * b
-    rgb_mean = [r, g, b]
-    saturation = (max(rgb_mean) - min(rgb_mean)) / (sum(rgb_mean) + 1e-6)
-    hist_r = (np.histogram(img_np[:, :, 0], bins=256, range=(0, 256))[0]).tolist()
-    hist_g = (np.histogram(img_np[:, :, 1], bins=256, range=(0, 256))[0]).tolist()
-    hist_b = (np.histogram(img_np[:, :, 2], bins=256, range=(0, 256))[0]).tolist()
-    contrast = int(img_np.max() - img_np.min())
-    img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(img_gray, 50, 150)
-    edge = np.sum(edges > 0)
-    hist_luminance = (np.histogram(img_gray, bins=256, range=(0, 256))[0]).tolist()
-    entropy = shannon_entropy(img_gray)
-    lbp = local_binary_pattern(img_gray, P=8, R=1.0, method="uniform")
-    texture_lbp = lbp.std()
-    sobel_edges = sobel(img_gray)
-    edge_energy = np.sum(sobel_edges ** 2)
-    return (
-        width, height, float(filesize_kb),
-        int(r), int(g), int(b),
-        float(contrast), float(saturation), float(luminosity),
-        float(edge), float(entropy), float(texture_lbp), float(edge_energy)
-    )
-
 def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy):
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     r_thresh = get_rule("avg_color_r")
@@ -278,9 +342,6 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
     # Décision finale : seuil à ajuster selon tes tests (ex : >=7)
     return "Pleine" if score >= 8 else "Vide"
 
-
-
-
 def get_rule(name, default=0):
     rule = ClassificationRule.query.filter_by(name=name).first()
     return rule.value if rule else default
@@ -294,111 +355,43 @@ def update_rule(name, value):
         db.session.add(rule)
     db.session.commit()
 
-def add_img(img):
-    if img and allowed_file(img.filename):
-        filename = img.filename
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        img.save(filepath)
-        link = filepath
-        # Remplace l'appel par :
-        (width, height, size, r, g, b, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy) = extract_features(filepath)
-        # Puis ajoute ces lignes dans new_image :
-        entropy=entropy
-        texture_lbp=texture_lbp
-        edge_energy=edge_energy
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-        annotation = request.form.get('annotation')
-        lat = random.uniform(48.5, 49)
-        lng = random.uniform(2,2.6)
-        
-        
-        if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
-            is_auto = annotation
-            annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy)
-        else:
-            is_auto = 'Manual'
-
-        new_image = TrashImage(
-            filename=filename,
-            link=link,
-            annotation=annotation.capitalize(),  # Majuscule
-            width=width,
-            height=height,
-            filesize_kb=round(size, 2),
-            avg_color_r=r,
-            avg_color_g=g,
-            avg_color_b=b,
-            contrast=contrast,
-            saturation=saturation,
-            luminosity=luminosity,
-            edge=edge,
-            entropy=entropy,
-            texture_lbp=texture_lbp,
-            edge_energy=edge_energy,
-            type=is_auto,
-            lat=lat,
-            lng=lng
-        )
-        db.session.add(new_image)
-        db.session.commit()
-        
-        settings = Settings.query.first()
-        if settings.use_auto_rules:
-            seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-            if seuils_plein and seuils_vide:
-                for rule in ClassificationRule.query.all():
-                    if rule.name in seuils_plein and rule.name in seuils_vide:
-                        update_rule(rule.name, (seuils_plein[rule.name][0] + seuils_vide[rule.name][0]) / 2)     
-    else:
-        return "Format de fichier non supporté", 400
-    
-
-# Route /admin remplace l'ancien index
-@app.route('/admin', methods=['GET', 'POST'])
-def settings():
+@app.route('/account', methods=['GET', 'POST'])
+def account():
+    message = ""
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
     if request.method == 'POST':
-        images = request.files.getlist('image')
-        for img in images:
-            add_img(img)
-    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template('index.html', images=images, user=user)
+        username = request.form['username']
+        password = request.form['password']
+        action = request.form['action']
+        if action == "register":
+            if User.query.filter_by(username=username).first():
+                message = "Nom d'utilisateur déjà pris."
+            else:
+                hashed_pw = generate_password_hash(password)
+                user = User(username=username, password=hashed_pw)
+                db.session.add(user)
+                db.session.commit()
+                message = "Inscription réussie. Connectez-vous."
+        elif action == "login":
+            user = User.query.filter_by(username=username).first()
+            if user and check_password_hash(user.password, password):
+                session['user_id'] = user.id
+                return redirect('/account')
+            else:
+                message = "Identifiants incorrects."
+        user = None 
+    return render_template('account.html', message=message, user=user)
 
-@app.route('/dashboard')
-def dashboard():
-    user = None
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-    images = TrashImage.query.all()
-
-    total_images = len(images)
-    pleines = sum(1 for img in images if img.annotation == 'Pleine')
-    vides = sum(1 for img in images if img.annotation == 'Vide')
-    sizes = [img.filesize_kb for img in images]
-    annotations = [img.annotation for img in images]
-
-    r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
-    g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
-    b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
-
-    return render_template(
-        "dashboard.html",
-        total_images=total_images,
-        pleines=pleines,
-        vides=vides,
-        sizes=sizes,
-        annotations=annotations,
-        r_values=r_values,
-        g_values=g_values,
-        b_values=b_values,
-        user=user
-    )
-
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    return redirect('/account')
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
@@ -462,41 +455,47 @@ def user():
         use_auto_rules=settings.use_auto_rules, 
         user=user)
 
-@app.route('/account', methods=['GET', 'POST'])
-def account():
-    message = ""
+@app.route('/admin', methods=['GET', 'POST'])
+def settings():
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        action = request.form['action']
-        if action == "register":
-            if User.query.filter_by(username=username).first():
-                message = "Nom d'utilisateur déjà pris."
-            else:
-                hashed_pw = generate_password_hash(password)
-                user = User(username=username, password=hashed_pw)
-                db.session.add(user)
-                db.session.commit()
-                message = "Inscription réussie. Connectez-vous."
-        elif action == "login":
-            user = User.query.filter_by(username=username).first()
-            if user and check_password_hash(user.password, password):
-                session['user_id'] = user.id
-                return redirect('/account')
-            else:
-                message = "Identifiants incorrects."
-        user = None 
-    return render_template('account.html', message=message, user=user)
+        images = request.files.getlist('image')
+        for img in images:
+            add_img(img)
+    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
+    return render_template('index.html', images=images, user=user)
 
-@app.route('/logout')
-def logout():
-    session.pop('user_id', None)
-    return redirect('/account')
+@app.route('/dashboard')
+def dashboard():
+    user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+    images = TrashImage.query.all()
 
-socketio = SocketIO(app)
+    total_images = len(images)
+    pleines = sum(1 for img in images if img.annotation == 'Pleine')
+    vides = sum(1 for img in images if img.annotation == 'Vide')
+    sizes = [img.filesize_kb for img in images]
+    annotations = [img.annotation for img in images]
+
+    r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
+    g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
+    b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
+
+    return render_template(
+        "dashboard.html",
+        total_images=total_images,
+        pleines=pleines,
+        vides=vides,
+        sizes=sizes,
+        annotations=annotations,
+        r_values=r_values,
+        g_values=g_values,
+        b_values=b_values,
+        user=user
+    )
 
 @socketio.on('connect')
 def handle_connect():
