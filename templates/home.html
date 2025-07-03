@@ -192,7 +192,7 @@
         const request = {
           origin,
           destination,
-          travelMode: google.maps.TravelMode.WALKING, // ou DRIVING
+          travelMode: google.maps.TravelMode.WALKING,
         };
 
         directionsService.route(request, (result, status) => {
@@ -203,18 +203,7 @@
           }
         });
       }
-
       let userPosition = null;
-
-      function showSeuils() {
-        document.querySelector(".seuils").style.display = "block";
-        document.querySelector(".content").style.display = "none";
-      }
-
-      function hideSeuils() {
-        document.querySelector(".seuils").style.display = "none";
-        document.querySelector(".content").style.display = "block";
-      }
     </script>
   </body>
 </html>
