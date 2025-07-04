@@ -9,24 +9,49 @@
   <body>
     <div class="account-content">
       {% if user %}
-      <h2 class="mb-4 text-center account-title">Bienvenue, {{ user.username }} !</h2>
-      <div style="display:flex; align-items:center; justify-content:center; margin-bottom:24px;">
-        <img src="../static/icons/cleaner.png" alt="avatar" class="account-avatar">
-        <div>
-          <div class="account-userinfo">{{ user.username }}</div>
-          <div class="account-role">Rôle : <span style="font-weight:500;">{{ user.role if user.role else 'Utilisateur' }}</span></div>
+      <div class="info" id="info-block">
+        <h2 class="mb-4 text-center account-title">Bienvenue, {{ user.username }} !</h2>
+        <div style="display:flex; align-items:center; justify-content:center; margin-bottom:24px;">
+          <img src="../static/icons/cleaner.png" alt="avatar" class="account-avatar">
+          <div>
+            <div class="account-userinfo">{{ user.username }}</div>
+            <div class="account-role">Rôle : <span style="font-weight:500;">{{ user.role if user.role else 'Utilisateur' }}</span></div>
+          </div>
+        </div>
+        <div class="account-box">
+          <h4>Infos du compte</h4>
+          <ul>
+            <li><b>Temps de connexion :</b> <span style="color:#aaf;">à compléter</span></li>
+            <li><b>Email :</b> <span style="color:#aaf;">{{ user.email if user.email else 'Non disponible' }}</span></li>
+            <li><b>Images uploadées :</b> <span style="color:#aaf;">à compléter</span></li>
+          </ul>
+        </div>
+        <div class="d-grid gap-2 account-btns">
+          <a href="/logout" class="btn btn-danger">Se déconnecter</a>
+        </div>
+        <div class="">
+          <button class="btn" id="edit-btn" type="button">Modifier mes infos</button>
         </div>
       </div>
-      <div class="account-box">
-        <h4>Infos du compte</h4>
-        <ul>
-          <li><b>Date de connexion :</b> {{ user.last_login if user.last_login else 'Non disponible' }}</li>
-          <li><b>Email :</b> <span style="color:#aaf;">à compléter</span></li>
-          <li><b>Images uploadées :</b> <span style="color:#aaf;">à compléter</span></li>
-        </ul>
-      </div>
-      <div class="d-grid gap-2 account-btns">
-        <a href="/logout" class="btn btn-danger">Se déconnecter</a>
+      <div class="modif" id="edit-block">
+        <form method="POST" action="/account" class="account-form" id="edit-form">
+          <div class="mb-3">
+            <label for="edit-username" class="form-label">Nom d'utilisateur</label>
+            <input type="text" class="form-control" id="edit-username" name="edit_username" value="{{ user.username }}" />
+          </div>
+          <div class="mb-3">
+            <label for="edit-email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="edit-email" name="edit_email" value="{{ user.email }}" />
+          </div>
+          <div class="mb-3">
+            <label for="edit-password" class="form-label">Nouveau mot de passe</label>
+            <input type="password" class="form-control" id="edit-password" name="edit_password" placeholder="Laisser vide pour ne pas changer" />
+          </div>
+          <div class="d-grid gap-2">
+            <button type="submit" name="action" value="edit" class="btn btn-edit-confirm">Enregistrer les modifications</button>
+            <button type="button" class="btn btn-secondary btn-edit-cancel" id="cancel-edit-btn">Annuler</button>
+          </div>
+        </form>
       </div>
       <div class="">
         <a href="/" class="btn">Retour à l'accueil</a>
@@ -35,12 +60,22 @@
       <h2 class="mb-4 text-center account-title">Connexion ou inscription</h2>
       <form method="POST" action="/account" class="account-form">
         <div class="mb-3">
-          <label for="username" class="form-label">Nom d'utilisateur</label>
+          <label for="username" class="form-label">Nom d'utilisateur (optionnel)</label>
           <input
             type="text"
             class="form-control"
             id="username"
             name="username"
+            placeholder="Laisser vide pour générer automatiquement"
+          />
+        </div>
+        <div class="mb-3">
+          <label for="email" class="form-label">Email</label>
+          <input
+            type="email"
+            class="form-control"
+            id="email"
+            name="email"
             required
           />
         </div>
@@ -68,4 +103,5 @@
       {% endif %}
     </div>
   </body>
+  <script src="../static/js/script.js" defer></script>
 </html>

@@ -64,16 +64,18 @@ class Settings(db.Model):
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), default='user')
 
 def create_admin_account():
-    admin_username = "admin@binvision.com"
+    admin_username = "admin"
+    admin_email = "admin@binvision.com"
     admin_password = "12345"
     admin_role = "admin"
-    if not User.query.filter_by(username=admin_username).first():
+    if not User.query.filter_by(email=admin_email).first():
         hashed_pw = generate_password_hash(admin_password)
-        admin = User(username=admin_username, password=hashed_pw, role=admin_role)
+        admin = User(username=admin_username, email=admin_email, password=hashed_pw, role=admin_role)
         db.session.add(admin)
         db.session.commit()
 
@@ -366,26 +368,55 @@ def account():
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        action = request.form['action']
-        if action == "register":
-            if User.query.filter_by(username=username).first():
-                message = "Nom d'utilisateur déjà pris."
+        action = request.form.get('action')
+        if action == 'edit' and user:
+            new_username = request.form.get('edit_username', '').strip()
+            new_email = request.form.get('edit_email', '').strip()
+            new_password = request.form.get('edit_password', '').strip()
+            if new_email and new_email != user.email and User.query.filter_by(email=new_email).first():
+                message = "Cet email est déjà utilisé."
             else:
-                hashed_pw = generate_password_hash(password)
-                user = User(username=username, password=hashed_pw)
-                db.session.add(user)
+                if new_username:
+                    user.username = new_username
+                if new_email:
+                    user.email = new_email
+                if new_password:
+                    user.password = generate_password_hash(new_password)
                 db.session.commit()
-                message = "Inscription réussie. Connectez-vous."
-        elif action == "login":
-            user = User.query.filter_by(username=username).first()
-            if user and check_password_hash(user.password, password):
-                session['user_id'] = user.id
-                return redirect('/account')
-            else:
-                message = "Identifiants incorrects."
-        user = None 
+                message = "Profil mis à jour."
+        else:
+            username = request.form.get('username', '').strip()
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '').strip()
+            if action == "register":
+                if User.query.filter_by(email=email).first():
+                    message = "Email déjà pris."
+                else:
+                    if not username:
+                        temp_user = User(username="temp", email=email, password=generate_password_hash(password))
+                        db.session.add(temp_user)
+                        db.session.flush()
+                        temp_user.username = f"user{temp_user.id}"
+                        db.session.commit()
+                        message = "Inscription réussie. Connectez-vous."
+                        user = None
+                        return render_template('account.html', message=message, user=None)
+                    else:
+                        hashed_pw = generate_password_hash(password)
+                        user = User(username=username, email=email, password=hashed_pw)
+                        db.session.add(user)
+                        db.session.commit()
+                        message = "Inscription réussie. Connectez-vous."
+            elif action == "login":
+                user = User.query.filter_by(email=email).first()
+                if user and check_password_hash(user.password, password):
+                    session['user_id'] = user.id
+                    return redirect('/account')
+                else:
+                    message = "Identifiants incorrects."
+            user = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
     return render_template('account.html', message=message, user=user)
 
 @app.route('/logout')
@@ -465,7 +496,7 @@ def settings():
         for img in images:
             add_img(img)
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
-    return render_template('index.html', images=images, user=user)
+    return render_template('settings.html', images=images, user=user)
 
 @app.route('/dashboard')
 def dashboard():

@@ -289,7 +289,6 @@ h3 {
   filter: drop-shadow(0 0 10px rgba(0, 128, 0, 1));
 }
 #whitebtn {
-  margin-left: 20px;
   color: white;
   background-color: transparent;
   border: 1px solid white;
@@ -676,4 +675,22 @@ h3 {
     font-size: 0.85em;
     padding: 6px 2px;
   }
+}
+
+#loading-img {
+  display: none;
+  height: 40vh;
+  box-shadow: 0 0 16px #22b57344;
+  object-fit: contain;
+}
+
+.btn-edit-confirm {
+  width: 100%;
+  background: linear-gradient(90deg,#22b573,#aaffaa);
+  color: #222;
+  font-weight: 600;
+}
+.btn-edit-cancel {
+  width: 100%;
+  margin-top: 8px;
 }

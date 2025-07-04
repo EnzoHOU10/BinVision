@@ -1,3 +1,22 @@
+document.addEventListener('DOMContentLoaded', function() {
+  const infoBlock = document.getElementById('info-block');
+  const editBlock = document.getElementById('edit-block');
+  const editBtn = document.getElementById('edit-btn');
+  const cancelEditBtn = document.getElementById('cancel-edit-btn');
+  if(editBlock) editBlock.style.display = 'none';
+  if(editBtn) {
+    editBtn.onclick = function() {
+      if(infoBlock) infoBlock.style.display = 'none';
+      if(editBlock) editBlock.style.display = 'block';
+    };
+  }
+  if(cancelEditBtn) {
+    cancelEditBtn.onclick = function() {
+      if(editBlock) editBlock.style.display = 'none';
+      if(infoBlock) infoBlock.style.display = 'block';
+    };
+  }
+});
 let files = [];
 let currentIndex = 0;
 let currentPage = 1;
@@ -109,3 +128,28 @@ function closeLightbox(event) {
     document.getElementById("lightbox-img").src = "";
   }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  const preview = document.getElementById('preview');
+  const loadingImg = document.getElementById('loading-img');
+  const input = document.getElementById('input');
+  function updateLoader() {
+    if (!preview || !loadingImg) return;
+    if (preview.children.length === 0) {
+      loadingImg.style.display = 'block';
+      preview.style.display = 'none';
+    } else {
+      loadingImg.style.display = 'none';
+      preview.style.display = 'flex';
+    }
+  }
+  if (input && preview && loadingImg) {
+    loadingImg.style.display = 'block';
+    preview.style.display = 'none';
+    input.addEventListener('change', function() {
+      setTimeout(updateLoader, 50);
+    });
+    preview.addEventListener('DOMSubtreeModified', updateLoader);
+  }
+});
+
