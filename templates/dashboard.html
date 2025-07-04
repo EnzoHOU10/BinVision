@@ -14,21 +14,13 @@
   </head>
   <body>
     <div class="sidebar">
-      <div id="start">
-        <img
-          src="../static/logo/logoname.ico"
-          alt="Chargement..."
-          width="60%"
-          id="startlogo"
-        />
-      </div>
-      <br />
-      <a href="/">Home</a>
-      <a href="/predict">Pleine/Vide</a>
+      <div id="start"><img src="../static/logo/logoname.ico" alt="Chargement..." id="startlogo" /></div>
+      <a href="/" data-icon="🏠">Home</a>
+      <a href="/predict" data-icon="🔍">Pleine/Vide</a>
       {% if user and user.role == 'admin' %}
-        <a href="/admin">Settings</a>
+        <a href="/admin" data-icon="⚙️">Settings</a>
       {% endif %}
-        <a href="/dashboard"><strong>Dashboard</strong></a>
+      <a href="/dashboard" data-icon="📊"><strong>Dashboard</strong></a>
       <div id="end">
         <p>All rights reserved</p>
         <p>© 2024 BinVision</p>

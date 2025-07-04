@@ -10,48 +10,19 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../static/css/style.css" />
-    <style>
-      .d-flex {
-        height: 75vh;
-        width: 90%;
-        margin: 0 auto;
-      }
-      #map {
-        height: 100%;
-        width: 70%;
-        border-radius: 10px 0 0 10px;
-      }
-      #sidebar2 {
-        flex: 1;
-        padding: 1rem;
-        border-left: 10px solid #500000;
-        background-color: rgba(255, 0, 0, 0.1);
-        border-radius: 0 10px 10px 0;
-        overflow-y: auto;
-      }
-      .filter-box {
-        margin-bottom: 10px;
-      }
-    </style>
   </head>
 
   <body>
     <div class="sidebar">
       <div id="start">
-        <img
-          src="../static/logo/logoname.ico"
-          alt="Chargement..."
-          width="60%"
-          id="startlogo"
-        />
+        <img src="../static/logo/logoname.ico" alt="Chargement..." id="startlogo" />
       </div>
-      <br />
-      <a href="/"><strong>Home</strong></a>
-      <a href="/predict">Pleine/Vide</a>
+      <a href="/" data-icon="🏠"><strong>Home</strong></a>
+      <a href="/predict" data-icon="🔍">Pleine/Vide</a>
       {% if user and user.role == 'admin' %}
-      <a href="/admin">Settings</a>
+      <a href="/admin" data-icon="⚙️">Settings</a>
       {% endif %}
-      <a href="/dashboard">Dashboard</a>
+      <a href="/dashboard" data-icon="📊">Dashboard</a>
       <div id="end">
         <p>All rights reserved</p>
         <p>© 2024 BinVision</p>
@@ -63,7 +34,7 @@
     </div>
     <div class="content">
       <h3>IA – Suivi en temps réel avec Google Maps</h3>
-      <div class="d-flex">
+      <div class="d-flex flex-wrap flex-md-nowrap" style="gap:2vw;">
         <div id="map"></div>
         <div id="sidebar2">
           <h5>Filtres</h5>
@@ -77,7 +48,6 @@
             <input type="checkbox" id="show_market" checked />
             <label for="show_market">Jours de marché</label><br />
           </div>
-
           <h5>Journal des mises à jour</h5>
           <ul id="log" style="list-style-type: none; padding-left: 0"></ul>
         </div>

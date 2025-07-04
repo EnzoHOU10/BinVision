@@ -464,3 +464,110 @@ h3 {
   font-size: 2vh;
   padding: 1.2vh 0;
 }
+.d-flex {
+  height: 75vh;
+  width: 90%;
+  margin: 0 auto;
+}
+#map {
+  height: 100%;
+  width: 70%;
+  border-radius: 10px 0 0 10px;
+}
+#sidebar2 {
+  flex: 1;
+  padding: 1rem;
+  border-left: 10px solid #500000;
+  background-color: rgba(255, 0, 0, 0.1);
+  border-radius: 0 10px 10px 0;
+  overflow-y: auto;
+}
+.filter-box {
+  margin-bottom: 10px;
+}
+
+/* --- Responsive bottom navigation bar for mobile/tablette --- */
+@media (max-width: 900px) {
+  body {
+    display: block !important;
+    min-height: 100vh;
+    height: auto;
+    overflow-x: hidden;
+    padding-bottom: 64px; /* espace pour la nav bar en bas */
+  }
+  .sidebar {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    top: auto !important;
+    width: 100vw;
+    height: 10vh !important;
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 2000;
+    padding: 0 0;
+    background: #000;
+    overflow-x: auto;
+    overflow-y: visible;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+    border-radius: 12px 12px 0 0;
+    display: flex !important;
+    border-top: 1px solid #222;
+  }
+  .sidebar #start, .sidebar #end {
+    display: none !important;
+  }
+  .sidebar a {
+    margin: 0 2vw;
+    padding: 0;
+    font-size: 1.2em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border-radius: 8px;
+    white-space: nowrap;
+    color: #fff;
+    min-width: 48px;
+    min-height: 48px;
+    height: 48px;
+    width: 48px;
+    transition: background 0.2s;
+    text-decoration: none;
+  }
+  .sidebar a strong {
+    font-weight: normal;
+    font-size: 0.8em;
+    margin-top: 2px;
+    display: none;
+  }
+  .sidebar a[data-icon]:before {
+    content: attr(data-icon);
+    font-size: 1.6em;
+    display: block;
+    margin: 0 auto 2px auto;
+    line-height: 1;
+  }
+  .sidebar a.active, .sidebar a:active, .sidebar a:focus {
+    background: #222;
+  }
+  .btnright {
+    position: fixed;
+    top: 10px;
+    right: 2vw;
+    z-index: 2001;
+  }
+  .content {
+    margin-top: 0 !important;
+    margin-bottom: 64px !important;
+    padding: 0 2vw;
+    width: 100vw;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+    box-sizing: border-box;
+    display: block !important;
+  }
+}
