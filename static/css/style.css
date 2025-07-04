@@ -560,14 +560,120 @@ h3 {
     z-index: 2001;
   }
   .content {
-    margin-top: 0 !important;
+    margin: 0 auto !important;
     margin-bottom: 64px !important;
-    padding: 0 2vw;
+    padding: 2vw 2vw 0 2vw !important;
     width: 100vw;
     min-width: 0;
+    max-width: 100vw;
     height: auto;
     overflow: visible;
     box-sizing: border-box;
-    display: block !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .register, .account-content, .seuils-form, .seuils-tables, .seuils-table {
+    width: 98vw !important;
+    min-width: 0 !important;
+    max-width: 100vw !important;
+    padding: 2vw 2vw !important;
+    margin: 0 auto 2vw auto !important;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .d-flex, .table-responsive, .tableau {
+    width: 98vw !important;
+    max-width: 100vw !important;
+    margin: 0 auto 2vw auto !important;
+    box-sizing: border-box;
+    overflow-x: auto;
+    display: block;
+  }
+  .tableau thead th, .tableau tbody td {
+    font-size: 0.95em;
+    padding: 8px 4px;
+    text-align: center;
+    min-width: 60px;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .btn, a.btn, button.btn {
+    width: 100% !important;
+    min-width: 0;
+    font-size: 1.1em;
+    padding: 1em 0.5em;
+    margin: 8px 0;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  h1, h2, h3, h4, h5 {
+    text-align: center !important;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+  .account-content, .account-box, .account-form {
+    align-items: center;
+    justify-content: center;
+    margin: 2vw auto !important;
+    width: 98vw !important;
+    max-width: 500px !important;
+  }
+  .account-avatar {
+    margin: 0 auto 2vw auto;
+    display: block;
+  }
+  .margin-top {
+    margin-top: 2vw !important;
+  }
+  .buttonrow, .classification-buttons {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2vw !important;
+    width: 100% !important;
+    margin: 2vw 0 !important;
+  }
+  .seuils, .seuils-tables {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2vw !important;
+    width: 100vw !important;
+    margin: 0 auto !important;
+  }
+  .seuils-table {
+    width: 98vw !important;
+    margin-bottom: 2vw !important;
+  }
+  .lightbox-content {
+    max-width: 98vw !important;
+    max-height: 90vh !important;
+  }
+  .lightbox-img {
+    max-width: 95vw !important;
+    max-height: 60vh !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .content {
+    padding: 1vw 1vw 0 1vw !important;
+  }
+  .register, .account-content, .seuils-form, .seuils-tables, .seuils-table {
+    padding: 1vw 1vw !important;
+    font-size: 0.98em;
+  }
+  .btn, a.btn, button.btn {
+    font-size: 1em;
+    padding: 0.8em 0.2em;
+  }
+  .tableau thead th, .tableau tbody td {
+    font-size: 0.85em;
+    padding: 6px 2px;
   }
 }
