@@ -432,7 +432,7 @@ def home():
     
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    images = TrashImage.query.all()
+    images = TrashImage.query.filter_by(annotation='Pleine').all()
     images_conv=[]
     for img in images:
         images_conv.append({
@@ -527,6 +527,16 @@ def dashboard():
         b_values=b_values,
         user=user
     )
+
+@app.route('/delete_marker/<int:marker_id>', methods=['DELETE'])
+def delete_marker(marker_id):
+    marker = TrashImage.query.get(marker_id)
+    if marker:
+        db.session.delete(marker)
+        db.session.commit()
+        return {'success': True, 'message': 'Marker supprimé'}, 200
+    else:
+        return {'success': False, 'message': 'Marker introuvable'}, 404
 
 @socketio.on('connect')
 def handle_connect():

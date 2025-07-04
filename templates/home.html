@@ -10,6 +10,15 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../static/css/style.css" />
+    <style>
+      .gm-style .gm-style-iw-d {
+        color: #222 !important;
+        background: #fff !important;
+      }
+      .gm-style .gm-style-iw-c {
+        background: #fff !important;
+      }
+    </style>
   </head>
 
   <body>
@@ -52,13 +61,17 @@
           <ul id="log" style="list-style-type: none; padding-left: 0"></ul>
         </div>
       </div>
+      <div style="display:flex;gap:16px;margin:12px 0 18px 0;">
+        <button class="btn" onclick="traceItineraireComplet()">Itinéraire complet</button>
+        <button class="btn" id="btn-afficher-plan" onclick="showItinerairePlan()" >Afficher le plan de l'itinéraire</button>
+      </div>
     </div>
     
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="../static/js/script.js"></script>
     <script
       async
-      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBxFrv8bluwrce-EQuMBmAhlhzfNXbTvCA&callback=initMap"
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCwC58gXCab_UhVtxwqUkYjDBIM1hjDfDo&callback=initMap"
     ></script>
     <script>
       let map;
@@ -160,8 +173,212 @@
           }
         });
       }
-
+      
       let userPosition = null;
+      function getOptimizedOrder(start, points) {
+        let order = [];
+        let temp = [...points];
+        let pos = {...start};
+        while (temp.length > 0) {
+          let minDist = Infinity, minIdx = -1;
+          temp.forEach((p, i) => {
+            const d = Math.hypot(p.lat - pos.lat, p.lng - pos.lng);
+            if (d < minDist) { minDist = d; minIdx = i; }
+          });
+          order.push(temp[minIdx]);
+          pos = {lat: temp[minIdx].lat, lng: temp[minIdx].lng};
+          temp.splice(minIdx, 1);
+        }
+        return order;
+      }
+
+      async function traceItineraireComplet() {
+        const points = Object.values(markers)
+          .filter(m => m.getMap())
+          .map(m => {
+            const pos = m.getPosition();
+            return { marker: m, lat: pos.lat(), lng: pos.lng(), id: m.getTitle() };
+          });
+        if (!userPosition) {
+          alert("Position actuelle non disponible.");
+          return;
+        }
+        if (points.length === 0) {
+          alert("Aucun point à visiter.");
+          return;
+        }
+        let ordered = getOptimizedOrder(userPosition, points);
+        let currentPos = {...userPosition};
+        for (let i = 0; i < ordered.length; i++) {
+          const next = ordered[i];
+          const ok = await calculerEtape(currentPos, next);
+          if (!ok) continue;
+          const proceed = await attendreValidationEtape(next);
+          if (!proceed) break;
+          next.marker.setMap(null);
+          await fetch(`/delete_marker/${next.id.replace(/\D/g,'')}`, { method: 'DELETE' });
+          currentPos = {lat: next.lat, lng: next.lng};
+        }
+        alert("Itinéraire terminé !");
+      }
+
+      function calculerEtape(from, to) {
+        return new Promise((resolve) => {
+          directionsService.route({
+            origin: from,
+            destination: {lat: to.lat, lng: to.lng},
+            travelMode: google.maps.TravelMode.WALKING
+          }, (result, status) => {
+            if (status === "OK") {
+              directionsRenderer.setDirections(result);
+              resolve(true);
+            } else {
+              alert("Erreur Directions: " + status);
+              resolve(false);
+            }
+          });
+        });
+      }
+
+      function attendreValidationEtape(point) {
+        return new Promise((resolve) => {
+          let btn = document.createElement('button');
+          btn.textContent = "Arrivé à ce point, continuer ?";
+          btn.style.position = 'fixed';
+          btn.style.bottom = '20px';
+          btn.style.left = '50%';
+          btn.style.transform = 'translateX(-50%)';
+          btn.style.zIndex = 9999;
+          btn.style.background = '#22b573';
+          btn.style.color = '#fff';
+          btn.style.padding = '12px 20px';
+          btn.style.border = 'none';
+          btn.style.borderRadius = '8px';
+          btn.style.fontWeight = 'bold';
+          document.body.appendChild(btn);
+          btn.onclick = () => {
+            btn.remove();
+            resolve(true);
+          };
+        });
+      }
+      function showItinerairePlan() {
+        let points = Object.values(markers)
+          .filter(m => m && typeof m.getMap === 'function' && m.getMap())
+          .map(m => {
+            const pos = m.getPosition();
+            return { lat: pos.lat(), lng: pos.lng() };
+          });
+        console.log('[ItinerairePlan] Points visibles pour le plan:', points);
+        if (!userPosition) {
+          alert("Position actuelle non disponible.");
+          return;
+        }
+        if (points.length === 0) {
+          // Affiche une modale d'information
+          let modal = document.getElementById('itineraire-plan-modal');
+          if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'itineraire-plan-modal';
+            modal.style.position = 'fixed';
+            modal.style.top = 0;
+            modal.style.left = 0;
+            modal.style.width = '100vw';
+            modal.style.height = '100vh';
+            modal.style.background = 'rgba(0,0,0,0.7)';
+            modal.style.zIndex = 10000;
+            modal.style.display = 'flex';
+            modal.style.justifyContent = 'center';
+            modal.style.alignItems = 'center';
+            modal.innerHTML = `
+              <div style="background:#fff;padding:32px 24px;border-radius:8px;min-width:320px;min-height:120px;max-width:90vw;max-height:90vh;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <button id="close-itineraire-plan-modal" style="position:absolute;top:8px;right:8px;z-index:2;">✖</button>
+                <div style="font-size:1.2em;color:#222;font-weight:600;margin-bottom:12px;">Aucun point à afficher pour l'itinéraire.</div>
+              </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('close-itineraire-plan-modal').onclick = () => {
+              modal.remove();
+            };
+          }
+          modal.style.display = 'flex';
+          return;
+        }
+        let modal = document.getElementById('itineraire-plan-modal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'itineraire-plan-modal';
+          modal.style.position = 'fixed';
+          modal.style.top = 0;
+          modal.style.left = 0;
+          modal.style.width = '100vw';
+          modal.style.height = '100vh';
+          modal.style.background = 'rgba(0,0,0,0.7)';
+          modal.style.zIndex = 10000;
+          modal.style.display = 'flex';
+          modal.style.justifyContent = 'center';
+          modal.style.alignItems = 'center';
+          modal.innerHTML = `
+            <div id="itineraire-plan-carte-container" style="background:#fff;padding:16px;border-radius:8px;position:relative;min-width:320px;min-height:320px;max-width:90vw;max-height:90vh;">
+              <button id="close-itineraire-plan-modal" style="position:absolute;top:8px;right:8px;z-index:2;">✖</button>
+              <div id="itineraire-plan-carte" style="width:70vw;height:70vh;min-width:320px;min-height:320px;"></div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          document.getElementById('close-itineraire-plan-modal').onclick = () => {
+            modal.remove();
+          };
+        }
+        modal.style.display = 'flex';
+        // Affichage Polyline (plan indicatif)
+        if (window.itinerairePlanMap) {
+          window.itinerairePlanMap = null;
+        }
+        window.itinerairePlanMap = new google.maps.Map(document.getElementById('itineraire-plan-carte'), {
+          center: userPosition,
+          zoom: 13
+        });
+        // Markers sur la carte
+        let ordered = getOptimizedOrder(userPosition, points);
+        let planMarkers = [];
+        // Ajoute le point de départ
+        planMarkers.push(new google.maps.Marker({
+          position: userPosition,
+          map: window.itinerairePlanMap,
+          title: 'Départ',
+          icon: {
+            url: '../static/icons/cleaner.png',
+            scaledSize: new google.maps.Size(32, 32)
+          }
+        }));
+        // Ajoute les points à visiter
+        ordered.forEach((p, i) => {
+          planMarkers.push(new google.maps.Marker({
+            position: p,
+            map: window.itinerairePlanMap,
+            label: '' + (i+1),
+            icon: {
+              url: '../static/icons/bin.png',
+              scaledSize: new google.maps.Size(28, 28)
+            }
+          }));
+        });
+        // Trace la polyline
+        let path = [userPosition, ...ordered];
+        let polyline = new google.maps.Polyline({
+          path: path,
+          geodesic: true,
+          strokeColor: '#22b573',
+          strokeOpacity: 0.9,
+          strokeWeight: 5
+        });
+        polyline.setMap(window.itinerairePlanMap);
+        // Ajuste la vue
+        let bounds = new google.maps.LatLngBounds();
+        path.forEach(p => bounds.extend(p));
+        window.itinerairePlanMap.fitBounds(bounds);
+      }
+      // Le bouton "Afficher le plan de l'itinéraire" est maintenant dans le HTML, plus besoin de le créer dynamiquement
     </script>
   </body>
 </html>

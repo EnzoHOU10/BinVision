@@ -23,11 +23,14 @@ let currentPage = 1;
 const rowsPerPage = 8;
 let rows = [];
 
-document.getElementById("input").addEventListener("change", function (e) {
-  files = Array.from(e.target.files);
-  currentIndex = 0;
-  showCurrentImage();
-});
+const inputElem = document.getElementById("input");
+if (inputElem) {
+  inputElem.addEventListener("change", function (e) {
+    files = Array.from(e.target.files);
+    currentIndex = 0;
+    showCurrentImage();
+  });
+}
 
 function showCurrentImage() {
   const preview = document.getElementById("preview");
@@ -70,8 +73,10 @@ function hideDetails() {
 
 window.addEventListener("DOMContentLoaded", () => {
   const tbody = document.getElementById("tableaudimage");
-  rows = Array.from(tbody.querySelectorAll("tr"));
-  showPage(currentPage);
+  if (tbody) {
+    rows = Array.from(tbody.querySelectorAll("tr"));
+    showPage(currentPage);
+  }
 });
 
 function showPage(page) {
@@ -152,4 +157,3 @@ document.addEventListener('DOMContentLoaded', function() {
     preview.addEventListener('DOMSubtreeModified', updateLoader);
   }
 });
-
