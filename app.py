@@ -1,3 +1,71 @@
+def ml_evaluate_model():
+    """
+    Entraîne un modèle ML (RandomForest) sur les images type 'Manual',
+    teste sur les images type 'Auto', et affiche les métriques de classification.
+    Compare aussi avec la prédiction maison (annotation/type).
+    """
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+    import pandas as pd
+    
+    # Récupération des features et labels
+    features = [
+        'width', 'height', 'filesize_kb', 'avg_color_r', 'avg_color_g', 'avg_color_b',
+        'contrast', 'saturation', 'luminosity', 'edge', 'entropy', 'texture_lbp', 'edge_energy'
+    ]
+    
+    # Images d'entraînement (type Manual)
+    train_imgs = TrashImage.query.filter_by(type='Manual').all()
+    # Images de test (type Auto)
+    test_imgs = TrashImage.query.filter(TrashImage.type != 'Manual').all()
+    
+    if not train_imgs or not test_imgs:
+        print("Pas assez de données pour entraîner ou tester le modèle.")
+        return
+    
+    def get_X_y(imgs):
+        X = []
+        y = []
+        for img in imgs:
+            row = [getattr(img, f) for f in features]
+            if None in row or img.annotation not in ['Pleine', 'Vide']:
+                continue
+            X.append(row)
+            y.append(1 if img.annotation == 'Pleine' else 0)
+        return X, y
+    
+    X_train, y_train = get_X_y(train_imgs)
+    X_test, y_test = get_X_y(test_imgs)
+    
+    if not X_train or not X_test:
+        print("Pas assez de données valides pour entraîner ou tester le modèle.")
+        return
+    
+    # Entraînement du modèle
+    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    
+    # Métriques ML
+    print("\n--- Évaluation du modèle ML (RandomForest) ---")
+    print(classification_report(y_test, y_pred, target_names=['Vide', 'Pleine']))
+    print("Matrice de confusion :\n", confusion_matrix(y_test, y_pred))
+    print("Accuracy :", accuracy_score(y_test, y_pred))
+    
+    # Prédiction maison (type)
+    y_pred_maison = []
+    for img in test_imgs:
+        if img.annotation not in ['Pleine', 'Vide']:
+            continue
+        # On suppose que la prédiction maison est stockée dans img.type (ex: 'Pleine' ou 'Vide')
+        pred = 1 if img.type and img.type.lower().startswith('pleine') else 0
+        y_pred_maison.append(pred)
+    # Adapter la taille si certains test_imgs ont été filtrés
+    y_test_maison = [1 if img.annotation == 'Pleine' else 0 for img in test_imgs if img.annotation in ['Pleine', 'Vide']]
+    print("\n--- Évaluation de la prédiction maison (type) ---")
+    print(classification_report(y_test_maison, y_pred_maison, target_names=['Vide', 'Pleine']))
+    print("Matrice de confusion :\n", confusion_matrix(y_test_maison, y_pred_maison))
+    print("Accuracy :", accuracy_score(y_test_maison, y_pred_maison))
 from flask import Flask, render_template, request, redirect, session
 from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
 from flask_sqlalchemy import SQLAlchemy

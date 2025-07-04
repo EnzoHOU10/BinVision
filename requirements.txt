@@ -8,3 +8,5 @@ matplotlib
 mysql-connector-python
 datetime
 scikit-image
+scikit-learn 
+pandas
