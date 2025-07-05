@@ -1,31 +1,20 @@
 def ml_evaluate_model():
     """
-    Entraîne un modèle ML (RandomForest) sur les images type 'Manual',
-    teste sur les images type 'Auto', et affiche les métriques de classification.
-    Compare aussi avec la prédiction maison (annotation/type).
+    Entraîne un modèle ML sur les images annotées manuellement (type='Manual')
+    et teste sur les images annotées automatiquement (type='Auto').
+    Affiche accuracy, recall, F1, matrice de confusion.
     """
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-    import pandas as pd
-    
-    # Récupération des features et labels
+    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, ConfusionMatrixDisplay
+    import matplotlib.pyplot as plt
+
     features = [
         'width', 'height', 'filesize_kb', 'avg_color_r', 'avg_color_g', 'avg_color_b',
         'contrast', 'saturation', 'luminosity', 'edge', 'entropy', 'texture_lbp', 'edge_energy'
     ]
-    
-    # Images d'entraînement (type Manual)
-    train_imgs = TrashImage.query.filter_by(type='Manual').all()
-    # Images de test (type Auto)
-    test_imgs = TrashImage.query.filter(TrashImage.type != 'Manual').all()
-    
-    if not train_imgs or not test_imgs:
-        print("Pas assez de données pour entraîner ou tester le modèle.")
-        return
-    
+
     def get_X_y(imgs):
-        X = []
-        y = []
+        X, y = [], []
         for img in imgs:
             row = [getattr(img, f) for f in features]
             if None in row or img.annotation not in ['Pleine', 'Vide']:
@@ -33,39 +22,36 @@ def ml_evaluate_model():
             X.append(row)
             y.append(1 if img.annotation == 'Pleine' else 0)
         return X, y
-    
+
+    # Récupère les données
+    train_imgs = TrashImage.query.filter_by(type='Manual').all()
+    test_imgs = TrashImage.query.filter_by(type='Auto').all()
+
+    # Convertit en X/y
     X_train, y_train = get_X_y(train_imgs)
     X_test, y_test = get_X_y(test_imgs)
-    
+
     if not X_train or not X_test:
-        print("Pas assez de données valides pour entraîner ou tester le modèle.")
+        print("Pas assez de données valides pour entraîner ou tester.")
         return
-    
-    # Entraînement du modèle
+
+    # Entraîne le modèle
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
-    
-    # Métriques ML
-    print("\n--- Évaluation du modèle ML (RandomForest) ---")
+
+    # Affiche les résultats
+    print("\n--- Évaluation du modèle ML ---")
     print(classification_report(y_test, y_pred, target_names=['Vide', 'Pleine']))
     print("Matrice de confusion :\n", confusion_matrix(y_test, y_pred))
     print("Accuracy :", accuracy_score(y_test, y_pred))
-    
-    # Prédiction maison (type)
-    y_pred_maison = []
-    for img in test_imgs:
-        if img.annotation not in ['Pleine', 'Vide']:
-            continue
-        # On suppose que la prédiction maison est stockée dans img.type (ex: 'Pleine' ou 'Vide')
-        pred = 1 if img.type and img.type.lower().startswith('pleine') else 0
-        y_pred_maison.append(pred)
-    # Adapter la taille si certains test_imgs ont été filtrés
-    y_test_maison = [1 if img.annotation == 'Pleine' else 0 for img in test_imgs if img.annotation in ['Pleine', 'Vide']]
-    print("\n--- Évaluation de la prédiction maison (type) ---")
-    print(classification_report(y_test_maison, y_pred_maison, target_names=['Vide', 'Pleine']))
-    print("Matrice de confusion :\n", confusion_matrix(y_test_maison, y_pred_maison))
-    print("Accuracy :", accuracy_score(y_test_maison, y_pred_maison))
+
+    # Affichage graphique de la matrice
+    disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(y_test, y_pred), display_labels=['Vide', 'Pleine'])
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title("Matrice de confusion - Test sur Auto")
+    plt.show()
+
 from flask import Flask, render_template, request, redirect, session
 from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
 from flask_sqlalchemy import SQLAlchemy
@@ -74,10 +60,8 @@ from PIL import Image
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-import io
-import base64
 from flask import send_from_directory
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO
 import random
 from datetime import datetime
 from skimage.filters import sobel
@@ -176,6 +160,89 @@ with app.app_context():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def crop_img(image_path, marge_ratio=0.3, debug=False, output_dir="uploads/crop"):
+    img = cv2.imread(image_path)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    lower_green = np.array([40, 40, 40])
+    upper_green = np.array([85, 255, 255])
+    mask_green = cv2.inRange(hsv, lower_green, upper_green)
+    lower_red1 = np.array([0, 70, 50])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([160, 70, 50])
+    upper_red2 = np.array([180, 255, 255])
+    mask_red = cv2.inRange(hsv, lower_red1, upper_red1) | cv2.inRange(hsv, lower_red2, upper_red2)
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 55, 255])
+    mask_white = cv2.inRange(hsv, lower_white, upper_white)
+    kernel = np.ones((5, 5), np.uint8)
+    mask_clean = cv2.morphologyEx(mask_green, cv2.MORPH_CLOSE, kernel)
+    contours, _ = cv2.findContours(mask_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    meilleure_poubelle = None
+    meilleure_score = -1
+    best_debug_rect = None
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        if w < 30 or h < 30:
+            continue
+        area = cv2.contourArea(cnt)
+        aspect_ratio = h / float(w)
+        if aspect_ratio < 0.6 or aspect_ratio > 3.5:
+            continue
+        score = area
+        roi_edges = edges[y:y+h, x:x+w]
+        edge_density = np.sum(roi_edges > 0) / (w * h)
+        if edge_density > 0.20:
+            continue
+        bande_y1 = max(0, y - int(0.2 * h))
+        bande_y2 = y
+        bande_red = mask_red[bande_y1:bande_y2, x:x+w]
+        bande_white = mask_white[bande_y1:bande_y2, x:x+w]
+        score += np.sum(bande_red) + np.sum(bande_white)
+        if score > meilleure_score:
+            meilleure_score = score
+            marge_x = int(w * marge_ratio)
+            marge_y = int(h * marge_ratio)
+            x1 = max(0, x - marge_x)
+            y1 = max(0, y - marge_y)
+            x2 = min(img.shape[1], x + w + marge_x)
+            y2 = min(img.shape[0], y + h + marge_y)
+            meilleure_poubelle = img_rgb[y1:y2, x1:x2]
+            best_debug_rect = (x1, y1, x2, y2)
+
+    if meilleure_poubelle is None and len(contours) > 0:
+        cnt = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(cnt)
+        marge_x = int(w * marge_ratio)
+        marge_y = int(h * marge_ratio)
+        x1 = max(0, x - marge_x)
+        y1 = max(0, y - marge_y)
+        x2 = min(img.shape[1], x + w + marge_x)
+        y2 = min(img.shape[0], y + h + marge_y)
+        meilleure_poubelle = img_rgb[y1:y2, x1:x2]
+        best_debug_rect = (x1, y1, x2, y2)
+
+    if meilleure_poubelle is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        crop_path = os.path.join(output_dir, os.path.basename(image_path))
+        cv2.imwrite(crop_path, cv2.cvtColor(meilleure_poubelle, cv2.COLOR_RGB2BGR))
+        if debug and best_debug_rect:
+            x1, y1, x2, y2 = best_debug_rect
+            img_debug = img_rgb.copy()
+            cv2.rectangle(img_debug, (x1, y1), (x2, y2), (255, 0, 0), 3)
+            plt.imshow(img_debug)
+            plt.title("Zone détectée (poubelle + marge)")
+            plt.axis("off")
+            plt.show()
+            plt.imshow(meilleure_poubelle)
+            plt.title("Crop centré sur la poubelle")
+            plt.axis("off")
+            plt.show()
+        return crop_path
+    return image_path
+
 def extract_features(image_path):
     filesize_kb = os.path.getsize(image_path) / 1024
     img_rgb = Image.open(image_path).convert('RGB')
@@ -199,10 +266,10 @@ def extract_features(image_path):
     sobel_edges = sobel(img_gray)
     edge_energy = np.sum(sobel_edges ** 2)
     return (
-        width, height, float(filesize_kb),
-        int(r), int(g), int(b),
-        float(contrast), float(saturation), float(luminosity),
-        float(edge), float(entropy), float(texture_lbp), float(edge_energy)
+        width, height, filesize_kb,
+        r, g, b, hist_r, hist_g, hist_b,
+        contrast, saturation, luminosity, hist_luminance,
+        edge, entropy, texture_lbp, edge_energy
     )
 
 def add_img(img):
@@ -211,7 +278,8 @@ def add_img(img):
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         img.save(filepath)
         link = filepath
-        (width, height, size, r, g, b, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy) = extract_features(filepath)
+        crop_filepath = crop_img(filepath, marge_ratio=0.15, debug=False)
+        (width, height, size, r, g, b, hist_r, hist_g, hist_b, contrast, saturation, luminosity, hist_luminance, edge, entropy, texture_lbp, edge_energy) = extract_features(filepath)
         entropy=entropy
         texture_lbp=texture_lbp
         edge_energy=edge_energy
@@ -221,7 +289,7 @@ def add_img(img):
         
         if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
             is_auto = annotation
-            annotation = classify_image(r, size, g, b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy)
+            annotation = classify_image(size, r, g, b, hist_r, hist_g, hist_b, width, height, contrast, saturation, luminosity, hist_luminance, edge, entropy, texture_lbp, edge_energy)
         else:
             is_auto = 'Manual'
 
@@ -354,8 +422,8 @@ def calculate_seuils_from_db():
             return seuils, None, seuils_vide
     else:
         return None, None, None
-    
-def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, saturation, luminosity, edge, entropy, texture_lbp, edge_energy):
+
+def classify_image(filesize_kb, avg_r, avg_g, avg_b, hist_r, hist_g, hist_b, width, height, contrast, saturation, luminosity, hist_luminance, edge, entropy, texture_lbp, edge_energy):
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     r_thresh = get_rule("avg_color_r")
     g_thresh = get_rule("avg_color_g")
@@ -365,7 +433,7 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
     height_thresh = get_rule("height")
     contrast_thresh = get_rule("contrast")
     saturation_thresh = get_rule("saturation")
-    luminance_thresh = get_rule("luminance")
+    luminosity_thresh = get_rule("luminosity")
     edge_density_thresh = get_rule("edge_density")
     entropy_thresh = get_rule("entropy")
     texture_thresh = get_rule("texture_lbp")
@@ -387,7 +455,7 @@ def classify_image(avg_r, filesize_kb, avg_g, avg_b, width, height, contrast, sa
         score += 1
     if saturation < saturation_thresh:
         score += 1
-    if luminosity < luminance_thresh:
+    if luminosity < luminosity_thresh:
         score += 1
     if avg_r < r_thresh:
         score += 1
@@ -611,5 +679,9 @@ def handle_connect():
     print("Client connecté")
 
 if __name__ == '__main__':
+    with app.app_context():
+        ml_evaluate_model()
     socketio.run(app, debug=True)
     app.run(debug=True)
+
+
