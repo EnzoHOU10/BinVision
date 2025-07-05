@@ -93,7 +93,7 @@ class TrashImage(db.Model):
     avg_color_r = db.Column(db.Integer)
     avg_color_g = db.Column(db.Integer)
     avg_color_b = db.Column(db.Integer)
-    contrast = db.Column(db.Integer)
+    contrast = db.Column(db.Float)
     saturation = db.Column(db.Float)
     luminosity = db.Column(db.Float)
     edge = db.Column(db.Float)
@@ -266,10 +266,10 @@ def extract_features(image_path):
     sobel_edges = sobel(img_gray)
     edge_energy = np.sum(sobel_edges ** 2)
     return (
-        width, height, filesize_kb,
-        r, g, b, hist_r, hist_g, hist_b,
-        contrast, saturation, luminosity, hist_luminance,
-        edge, entropy, texture_lbp, edge_energy
+        int(width), int(height), float(filesize_kb),
+        int(r), int(g), int(b), hist_r, hist_g, hist_b,
+        float(contrast), float(saturation), float(luminosity), hist_luminance,
+        float(edge), float(entropy), float(texture_lbp), float(edge_energy)
     )
 
 def add_img(img):
