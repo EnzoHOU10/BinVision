@@ -679,8 +679,6 @@ def handle_connect():
     print("Client connecté")
 
 if __name__ == '__main__':
-    with app.app_context():
-        ml_evaluate_model()
     socketio.run(app, debug=True)
     app.run(debug=True)
 
