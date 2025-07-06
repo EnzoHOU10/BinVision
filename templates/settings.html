@@ -75,7 +75,9 @@
                 <th>RGB</th>
                 <th>Contrast</th>
                 <th>Saturation</th>
-                <th>Luminance</th>
+                <th>Luminosité</th>
+                <th>Sombre/Claire</th>
+                <th>TOP[Variance/Entropie]</th>
                 <th>Type</th>
               </tr>
             </thead>
@@ -100,6 +102,8 @@
                     <td>{{ img.contrast }}</td>
                     <td>{{ img.saturation }}</td>
                     <td>{{ img.luminosity }}</td>
+                    <td>{{ img.dark_ratio }}/{{ img.bright_ratio }}</td>
+                    <td>{{ img.top_variance }}/{{ img.top_entropy }}</td>
                     <td>{{ img.type }}</td>
                   </tr>
                 {% endif %}

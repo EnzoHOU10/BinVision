@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import seaborn as sns
 import pandas as pd
 from sqlalchemy.orm import class_mapper
+import json
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -45,10 +46,17 @@ class TrashImage(db.Model):
     contrast = db.Column(db.Float)
     saturation = db.Column(db.Float)
     luminosity = db.Column(db.Float)
-    edge = db.Column(db.Float)
+    edge_density = db.Column(db.Float)
     entropy = db.Column(db.Float, nullable=True)
-    texture_lbp = db.Column(db.Float, nullable=True)
+    texture_variance = db.Column(db.Float, nullable=True)
     edge_energy = db.Column(db.Float, nullable=True)
+    top_variance = db.Column(db.Float, nullable=True)
+    top_entropy = db.Column(db.Float, nullable=True)
+    hist_peaks = db.Column(db.Integer, nullable=True)
+    dark_ratio = db.Column(db.Float, nullable=True)
+    bright_ratio = db.Column(db.Float, nullable=True)
+    color_uniformity = db.Column(db.Float, nullable=True)
+    circle_count = db.Column(db.Integer, nullable=True)
     type = db.Column(db.String(10), nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
@@ -92,10 +100,17 @@ with app.app_context():
         "contrast": 0.05,
         "saturation": 0.05,
         "luminosity": 0.05,
-        "edge": 0.05,
+        "edge_density": 0.05,
         "entropy": 5.0,
-        "texture_lbp": 0.5,
-        "edge_energy": 1000.0
+        "texture_variance": 0.5,
+        "edge_energy": 1000.0,
+        "top_variance": 0.5,
+        "top_entropy": 4.0,
+        "hist_peaks": 10,
+        "dark_ratio": 0.3,
+        "bright_ratio": 0.2,
+        "color_uniformity": 0.5,
+        "circle_count": 3,
     }
     for name, value in seuils.items():
         if ClassificationRule.query.filter_by(name=name).first() is None:
@@ -109,117 +124,134 @@ with app.app_context():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def crop_img(image_path, marge_ratio=0.3, debug=False, output_dir="uploads/crop"):
-    img = cv2.imread(image_path)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    lower_green = np.array([40, 40, 40])
-    upper_green = np.array([85, 255, 255])
-    mask_green = cv2.inRange(hsv, lower_green, upper_green)
-    lower_red1 = np.array([0, 70, 50])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([160, 70, 50])
-    upper_red2 = np.array([180, 255, 255])
-    mask_red = cv2.inRange(hsv, lower_red1, upper_red1) | cv2.inRange(hsv, lower_red2, upper_red2)
-    lower_white = np.array([0, 0, 200])
-    upper_white = np.array([180, 55, 255])
-    mask_white = cv2.inRange(hsv, lower_white, upper_white)
-    kernel = np.ones((5, 5), np.uint8)
-    mask_clean = cv2.morphologyEx(mask_green, cv2.MORPH_CLOSE, kernel)
-    contours, _ = cv2.findContours(mask_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    meilleure_poubelle = None
-    meilleure_score = -1
-    best_debug_rect = None
-    for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        if w < 30 or h < 30:
-            continue
-        area = cv2.contourArea(cnt)
-        aspect_ratio = h / float(w)
-        if aspect_ratio < 0.6 or aspect_ratio > 3.5:
-            continue
-        score = area
-        roi_edges = edges[y:y+h, x:x+w]
-        edge_density = np.sum(roi_edges > 0) / (w * h)
-        if edge_density > 0.20:
-            continue
-        bande_y1 = max(0, y - int(0.2 * h))
-        bande_y2 = y
-        bande_red = mask_red[bande_y1:bande_y2, x:x+w]
-        bande_white = mask_white[bande_y1:bande_y2, x:x+w]
-        score += np.sum(bande_red) + np.sum(bande_white)
-        if score > meilleure_score:
-            meilleure_score = score
+def crop_img(image_path, marge_ratio=0.3, min_size=100, debug=False, output_dir="uploads/crop"):
+    try:
+        img = cv2.imread(image_path)
+        if img is None:
+            return image_path
+        
+        original_height, original_width = img.shape[:2]
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # Détection améliorée du vert
+        lower_green = np.array([35, 50, 50])
+        upper_green = np.array([85, 255, 255])
+        mask_green = cv2.inRange(hsv, lower_green, upper_green)
+        
+        # Nettoyage du masque
+        kernel = np.ones((7, 7), np.uint8)
+        mask_clean = cv2.morphologyEx(mask_green, cv2.MORPH_CLOSE, kernel)
+        mask_clean = cv2.morphologyEx(mask_clean, cv2.MORPH_OPEN, kernel)
+        
+        # Détection des contours
+        contours, _ = cv2.findContours(mask_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            return image_path
+        
+        # Sélection du best contour
+        best_contour = None
+        best_score = 0
+        
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            
+            # Filtres de taille
+            if w < 50 or h < 50:
+                continue
+                
+            area = cv2.contourArea(cnt)
+            aspect_ratio = h / float(w)
+            
+            # Critères pour une poubelle
+            if aspect_ratio < 0.8 or aspect_ratio > 2.5:
+                continue
+                
+            # Score basé sur l'aire et la forme
+            hull = cv2.convexHull(cnt)
+            hull_area = cv2.contourArea(hull)
+            solidity = area / hull_area if hull_area > 0 else 0
+            
+            # Bonus pour forme rectangulaire
+            rect_area = w * h
+            extent = area / rect_area
+            
+            score = area * solidity * extent
+            
+            if score > best_score:
+                best_score = score
+                best_contour = cnt
+        
+        if best_contour is not None:
+            x, y, w, h = cv2.boundingRect(best_contour)
+            
+            # Ajout de marge
             marge_x = int(w * marge_ratio)
             marge_y = int(h * marge_ratio)
+            
             x1 = max(0, x - marge_x)
             y1 = max(0, y - marge_y)
-            x2 = min(img.shape[1], x + w + marge_x)
-            y2 = min(img.shape[0], y + h + marge_y)
-            meilleure_poubelle = img_rgb[y1:y2, x1:x2]
-            best_debug_rect = (x1, y1, x2, y2)
-
-    if meilleure_poubelle is None and len(contours) > 0:
-        cnt = max(contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(cnt)
-        marge_x = int(w * marge_ratio)
-        marge_y = int(h * marge_ratio)
-        x1 = max(0, x - marge_x)
-        y1 = max(0, y - marge_y)
-        x2 = min(img.shape[1], x + w + marge_x)
-        y2 = min(img.shape[0], y + h + marge_y)
-        meilleure_poubelle = img_rgb[y1:y2, x1:x2]
-        best_debug_rect = (x1, y1, x2, y2)
-
-    if meilleure_poubelle is not None:
-        os.makedirs(output_dir, exist_ok=True)
-        crop_path = os.path.join(output_dir, os.path.basename(image_path))
-        cv2.imwrite(crop_path, cv2.cvtColor(meilleure_poubelle, cv2.COLOR_RGB2BGR))
-        if debug and best_debug_rect:
-            x1, y1, x2, y2 = best_debug_rect
-            img_debug = img_rgb.copy()
-            cv2.rectangle(img_debug, (x1, y1), (x2, y2), (255, 0, 0), 3)
-            plt.imshow(img_debug)
-            plt.title("Zone détectée (poubelle + marge)")
-            plt.axis("off")
-            plt.show()
-            plt.imshow(meilleure_poubelle)
-            plt.title("Crop centré sur la poubelle")
-            plt.axis("off")
-            plt.show()
-        return crop_path
-    return image_path
+            x2 = min(original_width, x + w + marge_x)
+            y2 = min(original_height, y + h + marge_y)
+            
+            cropped = img_rgb[y1:y2, x1:x2]
+            
+            # Vérification de la taille minimale
+            if cropped.shape[0] >= min_size and cropped.shape[1] >= min_size:
+                output_dir = os.path.dirname(image_path)
+                crop_filename = os.path.basename(image_path).replace('.', '_crop.')
+                crop_path = os.path.join(output_dir, crop_filename)
+                cv2.imwrite(crop_path, cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR))
+                return crop_path
+        
+        return image_path
+        
+    except Exception as e:
+        print(f"Erreur lors du crop: {e}")
+        return image_path
 
 def extract_features(image_path):
-    filesize_kb = os.path.getsize(image_path) / 1024
-    img_rgb = Image.open(image_path).convert('RGB')
-    width, height = img_rgb.size
-    img_np = np.array(img_rgb)
-    r, g, b = int(np.mean(img_np[:, :, 0])), int(np.mean(img_np[:, :, 1])), int(np.mean(img_np[:, :, 2]))
-    luminosity = 0.299 * r + 0.587 * g + 0.114 * b
-    rgb_mean = [r, g, b]
-    saturation = (max(rgb_mean) - min(rgb_mean)) / (sum(rgb_mean) + 1e-6)
-    hist_r = (np.histogram(img_np[:, :, 0], bins=256, range=(0, 256))[0]).tolist()
-    hist_g = (np.histogram(img_np[:, :, 1], bins=256, range=(0, 256))[0]).tolist()
-    hist_b = (np.histogram(img_np[:, :, 2], bins=256, range=(0, 256))[0]).tolist()
-    contrast = int(img_np.max() - img_np.min())
-    img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(img_gray, 50, 150)
-    edge = np.sum(edges > 0)
-    hist_luminance = (np.histogram(img_gray, bins=256, range=(0, 256))[0]).tolist()
-    entropy = shannon_entropy(img_gray)
-    lbp = local_binary_pattern(img_gray, P=8, R=1.0, method="uniform")
-    texture_lbp = lbp.std()
-    sobel_edges = sobel(img_gray)
-    edge_energy = np.sum(sobel_edges ** 2)
-    return (
-        int(width), int(height), float(filesize_kb),
-        int(r), int(g), int(b), hist_r, hist_g, hist_b,
-        float(contrast), float(saturation), float(luminosity), hist_luminance,
-        float(edge), float(entropy), float(texture_lbp), float(edge_energy)
-    )
+    try:
+        filesize_kb = os.path.getsize(image_path) / 1024
+        img_rgb = Image.open(image_path).convert('RGB')
+        width, height = img_rgb.size
+        img_np = np.array(img_rgb)
+        r, g, b = np.mean(img_np[:, :, 0]), np.mean(img_np[:, :, 1]), np.mean(img_np[:, :, 2])
+        luminosity = 0.299 * r + 0.587 * g + 0.114 * b
+        saturation = (np.max(img_np, axis=2) - np.min(img_np, axis=2)).mean()
+        contrast = np.std(img_np)
+        img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        edges = cv2.Canny(img_gray, 50, 150)
+        edge_density = np.sum(edges > 0) / (width * height)
+        entropy = shannon_entropy(img_gray)
+        lbp = local_binary_pattern(img_gray, P=8, R=1.0, method="uniform")
+        texture_variance = np.var(lbp)
+        sobel_edges = sobel(img_gray)
+        edge_energy = np.sum(sobel_edges ** 2)
+        top = img_gray[-height//3:, :]
+        top_variance = np.var(top)
+        top_entropy = shannon_entropy(top)
+        hist_luminance = cv2.calcHist([img_gray], [0], None, [256], [0, 256])
+        hist_peaks = len([i for i in range(1, 255) if hist_luminance[i] > hist_luminance[i-1] and hist_luminance[i] > hist_luminance[i+1]])
+        dark_ratio = np.sum(img_gray < 100) / (width * height)
+        bright_ratio = np.sum(img_gray > 180) / (width * height)
+        color_uniformity = 1 / (1 + np.std([r, g, b]))
+        circles = cv2.HoughCircles(img_gray, cv2.HOUGH_GRADIENT, 1, 20, 
+                                  param1=50, param2=30, minRadius=5, maxRadius=50)
+        circle_count = len(circles[0]) if circles is not None else 0
+        return (
+            int(width), int(height), float(filesize_kb),
+            int(r), int(g), int(b),
+            float(contrast), float(saturation), float(luminosity),
+            float(edge_density), float(entropy), float(texture_variance), float(edge_energy),
+            float(top_variance), float(top_entropy), int(hist_peaks),
+            float(dark_ratio), float(bright_ratio), float(color_uniformity), int(circle_count)
+        )
+        
+    except Exception as e:
+        print(f"Erreur extraction features: {e}")
+        return None
 
 def add_img(img):
     if img and allowed_file(img.filename):
@@ -227,38 +259,50 @@ def add_img(img):
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         img.save(filepath)
         link = filepath
-        crop_filepath = crop_img(filepath, marge_ratio=0.15, debug=False)
-        (width, height, size, r, g, b, hist_r, hist_g, hist_b, contrast, saturation, luminosity, hist_luminance, edge, entropy, texture_lbp, edge_energy) = extract_features(filepath)
-        entropy=entropy
-        texture_lbp=texture_lbp
-        edge_energy=edge_energy
+        crop_filepath = crop_img(filepath)
+        (width, height, size, r, g, b, contrast, saturation, 
+         luminosity, edge_density, entropy, texture_variance, edge_energy,
+         top_variance, top_entropy, hist_peaks, dark_ratio, bright_ratio, 
+         color_uniformity, circle_count) = extract_features(filepath)
         annotation = request.form.get('annotation')
         lat = random.uniform(48.5, 49)
         lng = random.uniform(2,2.6)
         
         if annotation not in ['Pleine', 'Vide', 'pleine', 'vide']:
             is_auto = annotation
-            annotation = classify_image(size, r, g, b, hist_r, hist_g, hist_b, width, height, contrast, saturation, luminosity, hist_luminance, edge, entropy, texture_lbp, edge_energy)
+            tree=load_tree()
+            annotation = classify_image(size, r, g, b, width, height, 
+                contrast, saturation, luminosity, 
+                edge_density, entropy, texture_variance, edge_energy,
+                top_variance, top_entropy, hist_peaks, dark_ratio, 
+                bright_ratio, color_uniformity, circle_count, tree)
         else:
             is_auto = 'Manual'
 
         new_image = TrashImage(
             filename=filename,
-            link=link,
+            link=crop_filepath,
             annotation=annotation.capitalize(),
             width=width,
             height=height,
             filesize_kb=round(size, 2),
-            avg_color_r=r,
-            avg_color_g=g,
-            avg_color_b=b,
+            avg_color_r=int(r),
+            avg_color_g=int(g),
+            avg_color_b=int(b),
             contrast=contrast,
             saturation=saturation,
             luminosity=luminosity,
-            edge=edge,
+            edge_density=edge_density,
             entropy=entropy,
-            texture_lbp=texture_lbp,
+            texture_variance=texture_variance,
             edge_energy=edge_energy,
+            top_variance=top_variance,
+            top_entropy=top_entropy,
+            hist_peaks=hist_peaks,
+            dark_ratio=dark_ratio,
+            bright_ratio=bright_ratio,
+            color_uniformity=color_uniformity,
+            circle_count=circle_count,
             type=is_auto,
             lat=lat,
             lng=lng
@@ -287,10 +331,17 @@ def calculate_seuils_from_db():
         "contrast": [0,900,0],
         "saturation": [0,900,0],
         "luminosity": [0,900,0],
-        "edge": [0,900,0],
+        "edge_density": [0,900,0],
         "entropy": [0,900,0],
-        "texture_lbp": [0,900,0],
-        "edge_energy": [0,900,0]
+        "texture_variance": [0,900,0],
+        "edge_energy": [0,900,0],
+        "top_variance": [0,900,0],
+        "top_entropy": [0,900,0],
+        "hist_peaks": [0,900,0],
+        "dark_ratio": [0,900,0],
+        "bright_ratio": [0,900,0],
+        "color_uniformity": [0,900,0],
+        "circle_count": [0,900,0],
     }
     seuils_plein = {
         "avg_color_r": [0,900,0],
@@ -302,10 +353,17 @@ def calculate_seuils_from_db():
         "contrast": [0,900,0],
         "saturation": [0,900,0],
         "luminosity": [0,900,0],
-        "edge": [0,900,0],
+        "edge_density": [0,900,0],
         "entropy": [0,900,0],
-        "texture_lbp": [0,900,0],
-        "edge_energy": [0,900,0]
+        "texture_variance": [0,900,0],
+        "edge_energy": [0,900,0],
+        "top_variance": [0,900,0],
+        "top_entropy": [0,900,0],
+        "hist_peaks": [0,900,0],
+        "dark_ratio": [0,900,0],
+        "bright_ratio": [0,900,0],
+        "color_uniformity": [0,900,0],
+        "circle_count": [0,900,0],
     }
     seuils_vide = {
         "avg_color_r": [0,900,0],
@@ -317,10 +375,17 @@ def calculate_seuils_from_db():
         "contrast": [0,900,0],
         "saturation": [0,900,0],
         "luminosity": [0,900,0],
-        "edge": [0,900,0],
+        "edge_density": [0,900,0],
         "entropy": [0,900,0],
-        "texture_lbp": [0,900,0],
-        "edge_energy": [0,900,0]
+        "texture_variance": [0,900,0],
+        "edge_energy": [0,900,0],
+        "top_variance": [0,900,0],
+        "top_entropy": [0,900,0],
+        "hist_peaks": [0,900,0],
+        "dark_ratio": [0,900,0],
+        "bright_ratio": [0,900,0],
+        "color_uniformity": [0,900,0],
+        "circle_count": [0,900,0],
     }
     rules = ClassificationRule.query.all()
     images = TrashImage.query.all()
@@ -372,62 +437,114 @@ def calculate_seuils_from_db():
     else:
         return None, None, None
 
-def classify_image(filesize_kb, avg_r, avg_g, avg_b, hist_r, hist_g, hist_b, width, height, contrast, saturation, luminosity, hist_luminance, edge, entropy, texture_lbp, edge_energy):
-    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
-    r_thresh = get_rule("avg_color_r")
-    g_thresh = get_rule("avg_color_g")
-    b_thresh = get_rule("avg_color_b")
-    filesize_thresh = get_rule("filesize_kb")
-    width_thresh = get_rule("width")
-    height_thresh = get_rule("height")
-    contrast_thresh = get_rule("contrast")
-    saturation_thresh = get_rule("saturation")
-    luminosity_thresh = get_rule("luminosity")
-    edge_density_thresh = get_rule("edge_density")
-    entropy_thresh = get_rule("entropy")
-    texture_thresh = get_rule("texture_lbp")
-    energy_thresh = get_rule("edge_energy")
-    score = 0
-    if height > height_thresh:
-        score += 2
-    if width > width_thresh:
-        score += 1
-    if filesize_kb > filesize_thresh:
-        score += 2
-    if edge > edge_density_thresh:
-        score += 2
-    if contrast > contrast_thresh:
-        score += 1
-    if entropy > entropy_thresh:
-        score += 1
-    if edge_energy > energy_thresh:
-        score += 1
-    if saturation < saturation_thresh:
-        score += 1
-    if luminosity < luminosity_thresh:
-        score += 1
-    if avg_r < r_thresh:
-        score += 1
-    if avg_g < g_thresh:
-        score += 1
-    if avg_b < b_thresh:
-        score += 1
-    if texture_lbp < texture_thresh:
-        score += 1
+def gini_impurity(y):
+    classes, counts = np.unique(y, return_counts=True)
+    probs = counts / counts.sum()
+    return 1 - np.sum(probs**2)
 
-    def in_range(val, minv, maxv):
-        return minv <= val <= maxv
+def best_seuil(X_col, y):
+    bests = {"seuil": None, "gini": float("inf")}
+    valeurs = np.unique(X_col)
+    for i in range(len(valeurs) - 1):
+        seuil = (valeurs[i] + valeurs[i+1]) / 2
+        gauche = y[X_col <= seuil]
+        droite = y[X_col > seuil]
+        gini_g = gini_impurity(gauche)
+        gini_d = gini_impurity(droite)
+        gini_total = (len(gauche) * gini_g + len(droite) * gini_d) / len(y)
+        if gini_total < bests["gini"]:
+            bests["seuil"] = seuil
+            bests["gini"] = gini_total
+    return bests["seuil"]
+
+def best_split(X, y):
+    best = {"feature": None, "seuil": None, "gini": float("inf")}
+    for col in X.columns:
+        seuil = best_seuil(X[col].values, y)
+        if seuil is None:
+            continue
+        gauche = y[X[col] <= seuil]
+        droite = y[X[col] > seuil]
+        gini_total = (
+            len(gauche) * gini_impurity(gauche) +
+            len(droite) * gini_impurity(droite)
+        ) / len(y)
+        
+        if gini_total < best["gini"]:
+            best.update({"feature": col, "seuil": seuil, "gini": gini_total})
+    return best
+
+def create_tree(X,y,profondeur=0, max_profondeur=5):
+    if len(np.unique(y)) == 1 or profondeur == max_profondeur:
+        return {"label": y.iloc[0], "leaf": True}
     
-    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge), ('entropy', entropy), ('texture_lbp', texture_lbp), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
-        plein_min, plein_max = seuils_plein[name][1], seuils_plein[name][2]
-        vide_min, vide_max = seuils_vide[name][1], seuils_vide[name][2]
-        if in_range(val, plein_min, plein_max) and not in_range(val, vide_min, vide_max):
-            score += 1  # fort indice "Pleine"
-        if not in_range(val, plein_min, plein_max) and in_range(val, vide_min, vide_max):
-            score -= 1
+    split = best_split(X, y)
+    if split["feature"] is None:
+        return {"label": y.mode()[0], "leaf": True}
+    
+    feature = split["feature"]
+    seuil = split["seuil"]
 
-    # Décision finale : seuil à ajuster selon tes tests (ex : >=7)
-    return "Pleine" if score >= 8 else "Vide"
+    gauche_idx = X[feature] <= seuil
+    droite_idx = X[feature] > seuil
+
+    tree = {
+        "feature": feature,
+        "seuil": seuil,
+        "gini": split["gini"],
+        "left": create_tree(X[gauche_idx], y[gauche_idx], profondeur+1, max_profondeur),
+        "right": create_tree(X[droite_idx], y[droite_idx], profondeur+1, max_profondeur),
+        "leaf": False
+    }
+    return tree
+
+def save_tree(tree, filename="cache/tree_cache/decision_tree.json"):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, "w") as f:
+        json.dump(tree, f)
+
+def load_tree(filename="cache/tree_cache/decision_tree.json"):
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            return json.load(f)
+    return None
+
+def classify_image(filesize_kb, avg_r, avg_g, avg_b, width, height, contrast, saturation, luminosity, edge_density, entropy, texture_variance, edge_energy,top_variance, top_entropy, hist_peaks, dark_ratio, bright_ratio, color_uniformity, circle_count, tree):
+    if tree is None:
+        tree = load_tree()
+        if tree is None:
+            return "Vide"
+    features = {
+        "width": width,
+        "height": height,
+        "filesize_kb": filesize_kb,
+        "avg_color_r": avg_r,
+        "avg_color_g": avg_g,
+        "avg_color_b": avg_b,
+        "contrast": contrast,
+        "saturation": saturation,
+        "luminosity": luminosity,
+        "edge_density": edge_density,
+        "entropy": entropy,
+        "texture_variance": texture_variance,
+        "edge_energy": edge_energy,
+        "top_variance": top_variance,
+        "top_entropy": top_entropy,
+        "hist_peaks": hist_peaks,
+        "dark_ratio": dark_ratio,
+        "bright_ratio": bright_ratio,
+        "color_uniformity": color_uniformity,
+        "circle_count": circle_count,
+    }
+    def predict(features, tree):
+        if tree.get("leaf", False):
+            return tree["label"]
+        if features[tree["feature"]] <= tree["seuil"]:
+            return predict(features, tree["left"])
+        else:
+            return predict(features, tree["right"])
+    
+    return predict(features,tree)
 
 def get_rule(name, default=0):
     rule = ClassificationRule.query.filter_by(name=name).first()
@@ -486,7 +603,7 @@ def generate_matplotlib(output_dir='static/matplotlib'):
         cbar = fig.colorbar(sc, ax=axs[1,0])
         cbar.set_label('Taille fichier (KB)')
 
-        metrics = ['texture_lbp', 'entropy']
+        metrics = ['texture_variance', 'entropy']
         means = subset_df[metrics].mean()
         stds = subset_df[metrics].std()
 
@@ -517,7 +634,7 @@ def ml_evaluate_model():
 
     features = [
         'width', 'height', 'filesize_kb', 'avg_color_r', 'avg_color_g', 'avg_color_b',
-        'contrast', 'saturation', 'luminosity', 'edge', 'entropy', 'texture_lbp', 'edge_energy'
+        'contrast', 'saturation', 'luminosity', 'edge_density', 'entropy', 'texture_variance', 'edge_energy'
     ]
 
     def get_X_y(imgs):
@@ -695,10 +812,17 @@ def user():
             'contrast': img.contrast,
             'saturation': img.saturation,
             'luminosity': img.luminosity,
-            'edge': img.edge,
+            'edge_density': img.edge_density,
             'entropy': img.entropy,
-            'texture_lbp': img.texture_lbp,
+            'texture_variance': img.texture_variance,
             'edge_energy': img.edge_energy,
+            'top_variance': img.top_variance,
+            'top_entropy': img.top_entropy,
+            'hist_peaks': img.hist_peaks,
+            'dark_ratio': img.dark_ratio,
+            'bright_ratio': img.bright_ratio,
+            'color_uniformity': img.color_uniformity,
+            'circle_count': img.circle_count,
             'type': img.type,
             'lat': img.lat,
             'lng': img.lng
@@ -724,6 +848,33 @@ def settings():
         images = request.files.getlist('image')
         for img in images:
             add_img(img)
+            imgs = TrashImage.query.filter_by(type='Manual').all()
+            df = pd.DataFrame([{  
+                'width': img.width,
+                'height': img.height,
+                'filesize_kb': img.filesize_kb,
+                'avg_color_r': img.avg_color_r,
+                'avg_color_g': img.avg_color_g,
+                'avg_color_b': img.avg_color_b,
+                'contrast': img.contrast,
+                'saturation': img.saturation,
+                'luminosity': img.luminosity,
+                'edge_density': img.edge_density,
+                'entropy': img.entropy,
+                'texture_variance': img.texture_variance,
+                'edge_energy': img.edge_energy,     
+                'top_variance': img.top_variance,
+                'top_entropy': img.top_entropy,
+                'hist_peaks': img.hist_peaks,
+                'dark_ratio': img.dark_ratio,
+                'bright_ratio': img.bright_ratio,
+                'color_uniformity': img.color_uniformity,
+                'circle_count': img.circle_count,
+                'annotation': img.annotation
+            } for img in imgs])
+            X = df.drop("annotation", axis=1)
+            y = df["annotation"]
+            save_tree(create_tree(X,y))
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
     return render_template('settings.html', images=images, user=user)
 
@@ -752,10 +903,17 @@ def dashboard():
             'contrast': img.contrast,
             'saturation': img.saturation,
             'luminosity': img.luminosity,
-            'edge': img.edge,
+            'edge_density': img.edge_density,
             'entropy': img.entropy,
-            'texture_lbp': img.texture_lbp,
-            'edge_energy': img.edge_energy,
+            'texture_variance': img.texture_variance,
+            'edge_energy': img.edge_energy,     
+            'top_variance': img.top_variance,
+            'top_entropy': img.top_entropy,
+            'hist_peaks': img.hist_peaks,
+            'dark_ratio': img.dark_ratio,
+            'bright_ratio': img.bright_ratio,
+            'color_uniformity': img.color_uniformity,
+            'circle_count': img.circle_count,       
             'type': img.type,
             'lat': img.lat,
             'lng': img.lng

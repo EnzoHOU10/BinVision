@@ -268,27 +268,7 @@ def manual():
     plt.show()
 
 
-def construire_arbre(profondeur=0, max_profondeur=4):
-    imgs = TrashImage.query.filter_by(type='Manual').all()
-    df = pd.DataFrame([{  
-        'width': img.width,
-        'height': img.height,
-        'filesize_kb': img.filesize_kb,
-        'avg_color_r': img.avg_color_r,
-        'avg_color_g': img.avg_color_g,
-        'avg_color_b': img.avg_color_b,
-        'contrast': img.contrast,
-        'saturation': img.saturation,
-        'luminosity': img.luminosity,
-        'edge': img.edge,
-        'entropy': img.entropy,
-        'texture_lbp': img.texture_lbp,
-        'edge_energy': img.edge_energy,
-        'annotation': img.annotation
-    } for img in imgs])
-
-    X = df.drop("annotation", axis=1)
-    y = df["annotation"]
+def construire_arbre(X,y,profondeur=0, max_profondeur=4):
     # Condition d'arrêt : pureté ou profondeur atteinte
     if len(np.unique(y)) == 1 or profondeur == max_profondeur:
         return {"label": y.iloc[0], "leaf": True}
@@ -976,3 +956,49 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 
+def classify_image(filesize_kb, avg_r, avg_g, avg_b, width, height, contrast, saturation, luminosity, hist_luminance, edge_density, entropy, texture_variance, edge_energy,top_variance, top_entropy, hist_peaks, dark_ratio, bright_ratio, color_uniformity, circle_count, tree):
+    seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+    score = 0
+    if height > get_rule("height"):
+        score += 2
+    if width > get_rule("width"):
+        score += 1
+    if filesize_kb > get_rule("filesize_kb"):
+        score += 2
+    if edge_density > get_rule("edge_density"):
+        score += 2
+    if contrast > get_rule("contrast"):
+        score += 1
+    if entropy > get_rule("entropy"):
+        score += 1
+    if edge_energy > get_rule("edge_energy"):
+        score += 1
+    if top_entropy > get_rule("top_entropy"):
+        score += 1
+    if dark_ratio > get_rule("dark_ratio"):
+        score += 1
+    if saturation < get_rule("saturation"):
+        score += 1
+    if luminosity < get_rule("luminosity"):
+        score += 1
+    if avg_r < get_rule("avg_color_r"):
+        score += 1
+    if avg_g < get_rule("avg_color_g"):
+        score += 1
+    if avg_b < get_rule("avg_color_b"):
+        score += 1
+    if texture_variance < get_rule("texture_variance"):
+        score += 1
+
+    def in_range(val, minv, maxv):
+        return minv <= val <= maxv
+    
+    for name, val in [('height', height), ('width', width), ('filesize_kb', filesize_kb),('contrast', contrast), ('saturation', saturation), ('luminosity', luminosity), ('edge', edge_density), ('entropy', entropy), ('texture_variance', texture_variance), ('edge_energy', edge_energy), ('avg_color_r', avg_r), ('avg_color_g', avg_g), ('avg_color_b', avg_b)]:
+        plein_min, plein_max = seuils_plein[name][1], seuils_plein[name][2]
+        vide_min, vide_max = seuils_vide[name][1], seuils_vide[name][2]
+        if in_range(val, plein_min, plein_max) and not in_range(val, vide_min, vide_max):
+            score += 1
+        if not in_range(val, plein_min, plein_max) and in_range(val, vide_min, vide_max):
+            score -= 1
+
+    return "Pleine" if score >= 7 else "Vide"
