@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', function() {
   const infoBlock = document.getElementById('info-block');
   const editBlock = document.getElementById('edit-block');
@@ -157,3 +158,12 @@ document.addEventListener('DOMContentLoaded', function() {
     preview.addEventListener('DOMSubtreeModified', updateLoader);
   }
 });
+function showCarousel() {
+  document.querySelector('.container').style.display = 'flex';
+  document.querySelector(".details").style.display = "none";
+}
+
+function hideCarousel() {
+  document.querySelector('.container').style.display = 'none';
+  document.querySelector(".details").style.display = "block";
+}

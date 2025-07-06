@@ -57,11 +57,11 @@
         <div class="margin-top">
           <button class="btn" onclick="showDetails()">Voir</button>
         </div>
-      </div>
-      <div class="">
+        <div class="">
         <button class="btn" onclick="showSeuils()">
           Ajuster l'IA
         </button>
+      </div>
       </div>
       <div class="details">
         <h3>Images enregistrées :</h4>
@@ -118,6 +118,7 @@
         </div>
         <div class="text-center margin-top">
           <button class="btn" onclick="hideDetails()">Retour</button>
+          <button id="openCarouselBtn" class="btn" onclick="showCarousel()">Voir en carrousel</button>
         </div>
       </div>
 
@@ -200,6 +201,38 @@
         <p style="color: #aaffaa; margin-top:1vh;">{{ message }}</p>
         {% endfor %} {% endwith %}
     </div>
+    <div class="container my-4">
+      <div id="imageCarousel" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-inner">
+          {% for img in images %}
+            <div class="carousel-item {% if loop.index == 1 %}active{% endif %}">
+              <div class="d-flex justify-content-center">
+                <img src="{{ img.link }}" class="d-block" alt="Image {{ img.id }}" style="max-height: 400px;">
+              </div>
+              <div class="carousel-caption d-block bg-dark bg-opacity-50 p-3 rounded text-start">
+                <p><strong>Annotation:</strong> {{ img.annotation or "Aucune" }}</p>
+                <p><strong>Date:</strong> {{ img.date }}</p>
+                <p><strong>Résolution:</strong> {{ img.width }}x{{ img.height }}</p>
+                <p><strong>R, G, B:</strong> {{ img.avg_color_r }}, {{ img.avg_color_g }}, {{ img.avg_color_b }}</p>
+                <p><strong>Contraste:</strong> {{ img.contrast }} | <strong>Saturation:</strong> {{ img.saturation }} | <strong>Luminosité:</strong> {{ img.luminosity }}</p>
+                <p><strong>Edge:</strong> {{ img.edge }} | <strong>Entropie:</strong> {{ img.entropy }}</p>
+                <p><strong>LBP:</strong> {{ img.texture_lbp }} | <strong>Énergie bord:</strong> {{ img.edge_energy }}</p>
+                <p><strong>Type:</strong> {{ img.type or "?" }} | <strong>Lat:</strong> {{ img.lat or "-" }} | <strong>Lng:</strong> {{ img.lng or "-" }}</p>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#imageCarousel" data-bs-slide="prev">
+          <span class="carousel-control-prev-icon"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#imageCarousel" data-bs-slide="next">
+          <span class="carousel-control-next-icon"></span>
+        </button>
+      </div>
+      <button class="btn" onclick="hideCarousel()">Retour</button>
+    </div>
+
     <script src="../static/js/script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>

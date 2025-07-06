@@ -10,15 +10,6 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../static/css/style.css" />
-    <style>
-      .gm-style .gm-style-iw-d {
-        color: #222 !important;
-        background: #fff !important;
-      }
-      .gm-style .gm-style-iw-c {
-        background: #fff !important;
-      }
-    </style>
   </head>
 
   <body>
@@ -275,7 +266,6 @@
           return;
         }
         if (points.length === 0) {
-          // Affiche une modale d'information
           let modal = document.getElementById('itineraire-plan-modal');
           if (!modal) {
             modal = document.createElement('div');
@@ -330,7 +320,6 @@
           };
         }
         modal.style.display = 'flex';
-        // Affichage Polyline (plan indicatif)
         if (window.itinerairePlanMap) {
           window.itinerairePlanMap = null;
         }
@@ -338,10 +327,8 @@
           center: userPosition,
           zoom: 13
         });
-        // Markers sur la carte
         let ordered = getOptimizedOrder(userPosition, points);
         let planMarkers = [];
-        // Ajoute le point de départ
         planMarkers.push(new google.maps.Marker({
           position: userPosition,
           map: window.itinerairePlanMap,
@@ -351,7 +338,6 @@
             scaledSize: new google.maps.Size(32, 32)
           }
         }));
-        // Ajoute les points à visiter
         ordered.forEach((p, i) => {
           planMarkers.push(new google.maps.Marker({
             position: p,
@@ -363,7 +349,6 @@
             }
           }));
         });
-        // Trace la polyline
         let path = [userPosition, ...ordered];
         let polyline = new google.maps.Polyline({
           path: path,
@@ -373,12 +358,10 @@
           strokeWeight: 5
         });
         polyline.setMap(window.itinerairePlanMap);
-        // Ajuste la vue
         let bounds = new google.maps.LatLngBounds();
         path.forEach(p => bounds.extend(p));
         window.itinerairePlanMap.fitBounds(bounds);
       }
-      // Le bouton "Afficher le plan de l'itinéraire" est maintenant dans le HTML, plus besoin de le créer dynamiquement
     </script>
   </body>
 </html>

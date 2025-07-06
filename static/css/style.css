@@ -15,12 +15,13 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  align-items: center;
 }
 #startlogo {
   margin: 0 auto;
   display: block;
-  width: 80%;
-  height: 40%;
+  width: 100%;
+  height: 50%;
 }
 .sidebar a {
   display: block;
@@ -515,7 +516,7 @@ h3 {
     height: 10vh !important;
     flex-direction: row !important;
     align-items: center;
-    justify-content: space-around;
+    justify-content: space-evenly !important;
     z-index: 2000;
     padding: 0 0;
     background: #000;
@@ -530,9 +531,12 @@ h3 {
     display: none !important;
   }
   .sidebar a {
-    margin: 0 2vw;
+    margin: 0;
     padding: 0;
-    font-size: 1.2em;
+    font-size: 1em;
+    min-width: 0;
+    max-width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -541,10 +545,6 @@ h3 {
     border-radius: 8px;
     white-space: nowrap;
     color: #fff;
-    min-width: 48px;
-    min-height: 48px;
-    height: 48px;
-    width: 48px;
     transition: background 0.2s;
     text-decoration: none;
   }
@@ -705,4 +705,161 @@ h3 {
 .btn-edit-cancel {
   width: 100%;
   margin-top: 8px;
+}
+.container.my-4 {
+  display: none;
+  width: 100%;
+  overflow: hidden;
+  margin: 0 auto;
+  padding: 20px 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#imageCarousel {
+  width: 600px;
+  max-width: 90vw;
+  margin: 0 auto;
+  position: relative;
+}
+.carousel-control-prev,
+.carousel-control-next {
+  width: 5%;
+}
+.carousel-control-next {
+  right: 5vh;
+}
+.carousel-control-prev {
+  left: 5vh;
+}
+.gm-style .gm-style-iw-d {
+  color: #222 !important;
+  background: #fff !important;
+}
+.gm-style .gm-style-iw-c {
+  background: #fff !important;
+}
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 15px 20px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.topbar h2 {
+  margin: 0;
+}
+.dashboard-container {
+  display: flex;
+  flex: 1;
+  gap: 15px;
+  overflow: hidden;
+}
+.left-panel {
+  width: 400px;
+  max-width: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgb(0 0 0 / 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  cursor: pointer;
+  font-size: 0.9em;
+  user-select: none;
+}
+thead {
+  background: #245311;
+  color: white;
+}
+th,
+td {
+  padding: 8px 10px;
+  text-align: left;
+}
+tr:hover {
+  background: #245311;
+}
+tr.selected {
+  background: #48773d;
+}
+
+.charts-container {
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+  border-top: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: transparent;
+}
+
+.matplotlib-images {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.matplotlib-images img {
+  max-width: 45%;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.right-panel {
+  flex: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 0 8px rgb(0 0 0 / 0.1);
+  display: flex;
+  flex-direction: column;
+}
+#heatmap {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.legend {
+  background: white;
+  padding: 10px;
+  font-size: 0.85em;
+  border-top: 1px solid #ddd;
+  text-align: left;
+  user-select: none;
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    flex-direction: column;
+  }
+  .left-panel {
+    width: 100%;
+    height: 300px;
+    max-height: 40vh;
+  }
+  .charts-container {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .matplotlib-images img {
+    max-width: 80vw;
+  }
+  .right-panel {
+    height: 50vh;
+  }
 }

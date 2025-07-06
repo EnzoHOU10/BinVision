@@ -1,57 +1,3 @@
-def ml_evaluate_model():
-    """
-    Entraîne un modèle ML sur les images annotées manuellement (type='Manual')
-    et teste sur les images annotées automatiquement (type='Auto').
-    Affiche accuracy, recall, F1, matrice de confusion.
-    """
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, ConfusionMatrixDisplay
-    import matplotlib.pyplot as plt
-
-    features = [
-        'width', 'height', 'filesize_kb', 'avg_color_r', 'avg_color_g', 'avg_color_b',
-        'contrast', 'saturation', 'luminosity', 'edge', 'entropy', 'texture_lbp', 'edge_energy'
-    ]
-
-    def get_X_y(imgs):
-        X, y = [], []
-        for img in imgs:
-            row = [getattr(img, f) for f in features]
-            if None in row or img.annotation not in ['Pleine', 'Vide']:
-                continue
-            X.append(row)
-            y.append(1 if img.annotation == 'Pleine' else 0)
-        return X, y
-
-    # Récupère les données
-    train_imgs = TrashImage.query.filter_by(type='Manual').all()
-    test_imgs = TrashImage.query.filter_by(type='Auto').all()
-
-    # Convertit en X/y
-    X_train, y_train = get_X_y(train_imgs)
-    X_test, y_test = get_X_y(test_imgs)
-
-    if not X_train or not X_test:
-        print("Pas assez de données valides pour entraîner ou tester.")
-        return
-
-    # Entraîne le modèle
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-
-    # Affiche les résultats
-    print("\n--- Évaluation du modèle ML ---")
-    print(classification_report(y_test, y_pred, target_names=['Vide', 'Pleine']))
-    print("Matrice de confusion :\n", confusion_matrix(y_test, y_pred))
-    print("Accuracy :", accuracy_score(y_test, y_pred))
-
-    # Affichage graphique de la matrice
-    disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(y_test, y_pred), display_labels=['Vide', 'Pleine'])
-    disp.plot(cmap=plt.cm.Blues)
-    plt.title("Matrice de confusion - Test sur Auto")
-    plt.show()
-
 from flask import Flask, render_template, request, redirect, session
 from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
 from flask_sqlalchemy import SQLAlchemy
@@ -68,6 +14,9 @@ from skimage.filters import sobel
 from skimage.feature import local_binary_pattern
 from skimage.measure import shannon_entropy
 from werkzeug.security import generate_password_hash, check_password_hash
+import seaborn as sns
+import pandas as pd
+from sqlalchemy.orm import class_mapper
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -493,6 +442,123 @@ def update_rule(name, value):
         db.session.add(rule)
     db.session.commit()
 
+def generate_matplotlib(output_dir='static/matplotlib'):
+    images = TrashImage.query.all()
+    os.makedirs(output_dir, exist_ok=True)
+    data = []
+    for img in images:
+        row = {col.key: getattr(img, col.key) for col in class_mapper(TrashImage).columns}
+        data.append(row)
+    df = pd.DataFrame(data)
+    subsets = {
+        "totalgraph": df,
+        "pleinegraph": df[df['annotation'] == 'Pleine'],
+        "videgraph": df[df['annotation'] == 'Vide'],
+    }
+    filenames = {
+        "totalgraph": "totalgraph.png",
+        "pleinegraph": "pleinegraph.png",
+        "videgraph": "videgraph.png",
+    }
+    paths = []
+    for key, subset_df in subsets.items():
+        fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+        fig.suptitle(f"Analyse des images - {key.capitalize()}", fontsize=16)
+
+        sns.histplot(subset_df['filesize_kb'].dropna(), bins=30, color="#245311", ax=axs[0,0])
+        axs[0,0].set_title("Distribution Taille fichiers (KB)")
+        axs[0,0].set_xlabel("Taille (KB)")
+        axs[0,0].set_ylabel("Nombre d'images")
+
+        sns.histplot(subset_df['contrast'].dropna(), bins=30, color='#B22222', ax=axs[0,1])
+        axs[0,1].set_title("Distribution Contraste")
+        axs[0,1].set_xlabel("Contraste")
+        axs[0,1].set_ylabel("Nombre d'images")
+
+        sc = axs[1,0].scatter(
+            subset_df['luminosity'], 
+            subset_df['saturation'], 
+            c=subset_df['filesize_kb'], cmap='viridis', alpha=0.7
+        )
+        axs[1,0].set_title("Luminosité vs Saturation (couleur = taille fichier)")
+        axs[1,0].set_xlabel("Luminosité")
+        axs[1,0].set_ylabel("Saturation")
+        cbar = fig.colorbar(sc, ax=axs[1,0])
+        cbar.set_label('Taille fichier (KB)')
+
+        metrics = ['texture_lbp', 'entropy']
+        means = subset_df[metrics].mean()
+        stds = subset_df[metrics].std()
+
+        axs[1,1].bar(metrics, means, yerr=stds, capsize=8, color=['black', '#B22222'])
+        axs[1,1].set_title("Moyenne ± écart-type: Texture LBP & Entropie")
+        axs[1,1].set_ylabel("Valeurs")
+        axs[1,1].set_ylim(0, max(means + stds)*1.2 if not means.empty else 1)
+        axs[1,1].set_facecolor('#f7f7f7')
+
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+        full_path = os.path.join(output_dir, filenames[key])
+        web_path = f"../{output_dir}/{filenames[key]}".replace("//", "/")
+        fig.savefig(full_path, bbox_inches='tight')
+        plt.close(fig)
+        paths.append(web_path)
+    return paths
+
+def ml_evaluate_model():
+    """
+    Entraîne un modèle ML sur les images annotées manuellement (type='Manual')
+    et teste sur les images annotées automatiquement (type='Auto').
+    Affiche accuracy, recall, F1, matrice de confusion.
+    """
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, ConfusionMatrixDisplay
+    import matplotlib.pyplot as plt
+
+    features = [
+        'width', 'height', 'filesize_kb', 'avg_color_r', 'avg_color_g', 'avg_color_b',
+        'contrast', 'saturation', 'luminosity', 'edge', 'entropy', 'texture_lbp', 'edge_energy'
+    ]
+
+    def get_X_y(imgs):
+        X, y = [], []
+        for img in imgs:
+            row = [getattr(img, f) for f in features]
+            if None in row or img.annotation not in ['Pleine', 'Vide']:
+                continue
+            X.append(row)
+            y.append(1 if img.annotation == 'Pleine' else 0)
+        return X, y
+
+    # Récupère les données
+    train_imgs = TrashImage.query.filter_by(type='Manual').all()
+    test_imgs = TrashImage.query.filter_by(type='Auto').all()
+
+    # Convertit en X/y
+    X_train, y_train = get_X_y(train_imgs)
+    X_test, y_test = get_X_y(test_imgs)
+
+    if not X_train or not X_test:
+        print("Pas assez de données valides pour entraîner ou tester.")
+        return
+
+    # Entraîne le modèle
+    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+
+    # Affiche les résultats
+    print("\n--- Évaluation du modèle ML ---")
+    print(classification_report(y_test, y_pred, target_names=['Vide', 'Pleine']))
+    print("Matrice de confusion :\n", confusion_matrix(y_test, y_pred))
+    print("Accuracy :", accuracy_score(y_test, y_pred))
+
+    # Affichage graphique de la matrice
+    disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(y_test, y_pred), display_labels=['Vide', 'Pleine'])
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title("Matrice de confusion - Test sur Auto")
+    plt.show()
+
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
@@ -612,13 +678,38 @@ def user():
             return redirect('/predict')
 
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
+    images_conv=[]
+    for img in images:
+        images_conv.append({
+            'id': img.id,
+            'filename': img.filename,
+            'link': img.link,
+            'date': img.date,
+            'annotation': img.annotation,
+            'width': img.width,
+            'height': img.height,
+            'filesize_kb': img.filesize_kb,
+            'avg_color_r': img.avg_color_r,
+            'avg_color_g': img.avg_color_g,
+            'avg_color_b': img.avg_color_b,
+            'contrast': img.contrast,
+            'saturation': img.saturation,
+            'luminosity': img.luminosity,
+            'edge': img.edge,
+            'entropy': img.entropy,
+            'texture_lbp': img.texture_lbp,
+            'edge_energy': img.edge_energy,
+            'type': img.type,
+            'lat': img.lat,
+            'lng': img.lng
+        })
     rules = ClassificationRule.query.all()
     seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
     return render_template('user.html', rules=rules,
         seuils=seuils,
         seuils_plein=seuils_plein,
         seuils_vide=seuils_vide, 
-        images=images, 
+        images=images_conv, 
         use_auto_rules=settings.use_auto_rules, 
         user=user)
 
@@ -627,6 +718,8 @@ def settings():
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
+    if user==None:
+        return redirect('/account')
     if request.method == 'POST':
         images = request.files.getlist('image')
         for img in images:
@@ -639,28 +732,45 @@ def dashboard():
     user = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
+
+    rules = ClassificationRule.query.all()
     images = TrashImage.query.all()
-
-    total_images = len(images)
-    pleines = sum(1 for img in images if img.annotation == 'Pleine')
-    vides = sum(1 for img in images if img.annotation == 'Vide')
-    sizes = [img.filesize_kb for img in images]
-    annotations = [img.annotation for img in images]
-
-    r_values = [img.avg_color_r for img in images if img.avg_color_r is not None]
-    g_values = [img.avg_color_g for img in images if img.avg_color_g is not None]
-    b_values = [img.avg_color_b for img in images if img.avg_color_b is not None]
-
+    images_conv=[]
+    for img in images:
+        images_conv.append({
+            'id': img.id,
+            'filename': img.filename,
+            'link': img.link,
+            'date': img.date,
+            'annotation': img.annotation,
+            'width': img.width,
+            'height': img.height,
+            'filesize_kb': img.filesize_kb,
+            'avg_color_r': img.avg_color_r,
+            'avg_color_g': img.avg_color_g,
+            'avg_color_b': img.avg_color_b,
+            'contrast': img.contrast,
+            'saturation': img.saturation,
+            'luminosity': img.luminosity,
+            'edge': img.edge,
+            'entropy': img.entropy,
+            'texture_lbp': img.texture_lbp,
+            'edge_energy': img.edge_energy,
+            'type': img.type,
+            'lat': img.lat,
+            'lng': img.lng
+        })
+    files = ['totalgraph.png', 'pleinegraph.png', 'videgraph.png']
+    files_exist = all(os.path.exists(os.path.join("static/matplotlib", f)) for f in files)
+    if files_exist:
+        paths = [f"{"../static/matplotlib"}/{f}" for f in files]
+    else:
+        paths = generate_matplotlib()
     return render_template(
-        "dashboard.html",
-        total_images=total_images,
-        pleines=pleines,
-        vides=vides,
-        sizes=sizes,
-        annotations=annotations,
-        r_values=r_values,
-        g_values=g_values,
-        b_values=b_values,
+        'dashboard.html', 
+        rules=rules,
+        images=images_conv,
+        paths=paths,
         user=user
     )
 
@@ -681,5 +791,3 @@ def handle_connect():
 if __name__ == '__main__':
     socketio.run(app, debug=True)
     app.run(debug=True)
-
-
