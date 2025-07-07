@@ -1,6 +1,0 @@
-{
-    "rules": {
-        "avg_r_threshold": 100,
-        "filesize_threshold_kb": 500
-    }
-}

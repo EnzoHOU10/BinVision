@@ -86,10 +86,10 @@
             <tbody id="tableaudimage">
               {% for img in images %}
                 {% if img.type == 'Auto' %}
-                    <tr onclick="showImage('{{ url_for('uploaded_file', filename=img.filename) }}')">
+                    <tr onclick="showImage('{{ url_for('main.uploaded_file', filename=img.filename) }}')">
                         <td>
                         <img
-                            src="{{ url_for('uploaded_file', filename=img.filename) }}"
+                            src="{{ url_for('main.uploaded_file', filename=img.filename) }}"
                             width="80"
                             alt="Image"
                         />
