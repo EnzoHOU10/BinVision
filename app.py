@@ -946,6 +946,60 @@ def delete_marker(marker_id):
 def handle_connect():
     print("Client connecté")
 
+from math import ceil
+def test_manual():
+        imgs = TrashImage.query.filter_by(type='Manual').all()
+        df = pd.DataFrame([{
+            'width': img.width,
+            'height': img.height,
+            'filesize_kb': img.filesize_kb,
+            'avg_color_r': img.avg_color_r,
+            'avg_color_g': img.avg_color_g,
+            'avg_color_b': img.avg_color_b,
+            'contrast': img.contrast,
+            'saturation': img.saturation,
+            'luminosity': img.luminosity,
+            'edge_density': img.edge_density,
+            'entropy': img.entropy,
+            'texture_variance': img.texture_variance,
+            'edge_energy': img.edge_energy,
+            'top_variance': img.top_variance,
+            'top_entropy': img.top_entropy,
+            'hist_peaks': img.hist_peaks,
+            'dark_ratio': img.dark_ratio,
+            'bright_ratio': img.bright_ratio,
+            'color_uniformity': img.color_uniformity,
+            'circle_count': img.circle_count,
+            'annotation': img.annotation
+        } for img in imgs if img.annotation in ['Pleine', 'Vide']])
+
+        df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+        split_idx = ceil(len(df) * 0.8)
+        train_df = df.iloc[:split_idx]
+        test_df = df.iloc[split_idx:]
+        X_train = train_df.drop("annotation", axis=1)
+        y_train = train_df["annotation"]
+        tree = create_tree(X_train, y_train)
+        X_test = test_df.drop("annotation", axis=1)
+        y_test = test_df["annotation"]
+        y_pred = []
+        for _, row in X_test.iterrows():
+            pred = classify_image(
+                row["filesize_kb"], row["avg_color_r"], row["avg_color_g"], row["avg_color_b"],
+                row["width"], row["height"], row["contrast"], row["saturation"], row["luminosity"],
+                row["edge_density"], row["entropy"], row["texture_variance"], row["edge_energy"],
+                row["top_variance"], row["top_entropy"], row["hist_peaks"],
+                row["dark_ratio"], row["bright_ratio"], row["color_uniformity"], row["circle_count"],
+                tree
+            )
+            y_pred.append(pred)
+        correct = sum(p == t for p, t in zip(y_pred, y_test))
+        total = len(y_test)
+        accuracy = correct / total if total > 0 else 0
+        print(f"Accuracy (arbre de décision fait maison) : {accuracy:.3f}")
+
 if __name__ == '__main__':
+    with app.app_context():
+        test_manual()
     socketio.run(app, debug=True)
     app.run(debug=True)
