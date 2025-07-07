@@ -793,8 +793,8 @@ def user():
             for img in images:
                 add_img(img)
             return redirect('/predict')
-
-    images = TrashImage.query.order_by(TrashImage.id.desc()).all()
+        
+    images = TrashImage.query.filter_by(annotation='Auto').all()
     images_conv=[]
     for img in images:
         images_conv.append({
