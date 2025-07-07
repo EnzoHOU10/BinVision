@@ -18,6 +18,10 @@ import seaborn as sns
 import pandas as pd
 from sqlalchemy.orm import class_mapper
 import json
+from math import ceil
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from math import floor
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -510,41 +514,111 @@ def load_tree(filename="cache/tree_cache/decision_tree.json"):
     return None
 
 def classify_image(filesize_kb, avg_r, avg_g, avg_b, width, height, contrast, saturation, luminosity, edge_density, entropy, texture_variance, edge_energy,top_variance, top_entropy, hist_peaks, dark_ratio, bright_ratio, color_uniformity, circle_count, tree):
-    if tree is None:
-        tree = load_tree()
-        if tree is None:
-            return "Vide"
     features = {
-        "width": width,
-        "height": height,
-        "filesize_kb": filesize_kb,
-        "avg_color_r": avg_r,
-        "avg_color_g": avg_g,
-        "avg_color_b": avg_b,
-        "contrast": contrast,
-        "saturation": saturation,
-        "luminosity": luminosity,
-        "edge_density": edge_density,
-        "entropy": entropy,
-        "texture_variance": texture_variance,
-        "edge_energy": edge_energy,
-        "top_variance": top_variance,
-        "top_entropy": top_entropy,
-        "hist_peaks": hist_peaks,
-        "dark_ratio": dark_ratio,
-        "bright_ratio": bright_ratio,
-        "color_uniformity": color_uniformity,
-        "circle_count": circle_count,
-    }
-    def predict(features, tree):
-        if tree.get("leaf", False):
-            return tree["label"]
-        if features[tree["feature"]] <= tree["seuil"]:
-            return predict(features, tree["left"])
-        else:
-            return predict(features, tree["right"])
-    
-    return predict(features,tree)
+            "width": width,
+            "height": height,
+            "filesize_kb": filesize_kb,
+            "avg_color_r": avg_r,
+            "avg_color_g": avg_g,
+            "avg_color_b": avg_b,
+            "contrast": contrast,
+            "saturation": saturation,
+            "luminosity": luminosity,
+            "edge_density": edge_density,
+            "entropy": entropy,
+            "texture_variance": texture_variance,
+            "edge_energy": edge_energy,
+            "top_variance": top_variance,
+            "top_entropy": top_entropy,
+            "hist_peaks": hist_peaks,
+            "dark_ratio": dark_ratio,
+            "bright_ratio": bright_ratio,
+            "color_uniformity": color_uniformity,
+            "circle_count": circle_count,
+        }
+    settings = Settings.query.first()
+    if settings.use_auto_rules:
+        seuils, seuils_plein, seuils_vide = calculate_seuils_from_db()
+        score = 0
+        if height > get_rule("height"):
+            score += 2
+        if width > get_rule("width"):
+            score += 1
+        if filesize_kb > get_rule("filesize_kb"):
+            score += 2
+        if edge_density > get_rule("edge_density"):
+            score += 2
+        if contrast > get_rule("contrast"):
+            score += 1
+        if entropy > get_rule("entropy"):
+            score += 1
+        if edge_energy > get_rule("edge_energy"):
+            score += 1
+        if top_entropy > get_rule("top_entropy"):
+            score += 1
+        if dark_ratio > get_rule("dark_ratio"):
+            score += 1
+        if saturation < get_rule("saturation"):
+            score += 1
+        if luminosity < get_rule("luminosity"):
+            score += 1
+        if avg_r < get_rule("avg_color_r"):
+            score += 1
+        if avg_g < get_rule("avg_color_g"):
+            score += 1
+        if avg_b < get_rule("avg_color_b"):
+            score += 1
+        if texture_variance < get_rule("texture_variance"):
+            score += 1
+        if bright_ratio < get_rule("bright_ratio"):
+            score -= 1
+        if color_uniformity > get_rule("color_uniformity"):
+            score -= 1
+        if circle_count > get_rule("circle_count"):
+            score -= 1
+        if hist_peaks < get_rule("hist_peaks"):
+            score += 1
+        if dark_ratio > 0.4 and avg_r < 80 and avg_g < 80 and avg_b < 80:
+            score += 2 
+        if entropy > 4.5 and texture_variance > 2.0:
+            score += 1 
+        if saturation < 30 and luminosity < 50:
+            score += 1 
+        if bright_ratio > 0.5 and dark_ratio < 0.1:
+            score -= 2 
+        if edge_density < 0.1 and entropy < 3.5:
+            score -= 2 
+        if circle_count >= 3 and color_uniformity > 0.5:
+            score -= 2 
+        if filesize_kb < 15 and contrast < 25:
+            score -= 2 
+
+        def in_range(val, minv, maxv):
+            return minv <= val <= maxv
+        
+        for name, val in features.items():
+            plein_min, plein_max = seuils_plein[name][1], seuils_plein[name][2]
+            vide_min, vide_max = seuils_vide[name][1], seuils_vide[name][2]
+            if in_range(val, plein_min, plein_max) and not in_range(val, vide_min, vide_max):
+                score += 1
+            if not in_range(val, plein_min, plein_max) and in_range(val, vide_min, vide_max):
+                score -= 1
+
+        return "Pleine" if score >= 7 else "Vide"
+    else:
+        if tree is None:
+            tree = load_tree()
+            if tree is None:
+                return "Vide"
+        def predict(features, tree):
+            if tree.get("leaf", False):
+                return tree["label"]
+            if features[tree["feature"]] <= tree["seuil"]:
+                return predict(features, tree["left"])
+            else:
+                return predict(features, tree["right"])
+        
+        return predict(features,tree)
 
 def get_rule(name, default=0):
     rule = ClassificationRule.query.filter_by(name=name).first()
@@ -622,59 +696,133 @@ def generate_matplotlib(output_dir='static/matplotlib'):
         paths.append(web_path)
     return paths
 
-def ml_evaluate_model():
-    """
-    Entraîne un modèle ML sur les images annotées manuellement (type='Manual')
-    et teste sur les images annotées automatiquement (type='Auto').
-    Affiche accuracy, recall, F1, matrice de confusion.
-    """
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, ConfusionMatrixDisplay
-    import matplotlib.pyplot as plt
+def test_manual():
+    imgs = TrashImage.query.filter_by(type='Manual').all()
+    df = pd.DataFrame([{
+        'width': img.width,
+        'height': img.height,
+        'filesize_kb': img.filesize_kb,
+        'avg_color_r': img.avg_color_r,
+        'avg_color_g': img.avg_color_g,
+        'avg_color_b': img.avg_color_b,
+        'contrast': img.contrast,
+        'saturation': img.saturation,
+        'luminosity': img.luminosity,
+        'edge_density': img.edge_density,
+        'entropy': img.entropy,
+        'texture_variance': img.texture_variance,
+        'edge_energy': img.edge_energy,
+        'top_variance': img.top_variance,
+        'top_entropy': img.top_entropy,
+        'hist_peaks': img.hist_peaks,
+        'dark_ratio': img.dark_ratio,
+        'bright_ratio': img.bright_ratio,
+        'color_uniformity': img.color_uniformity,
+        'circle_count': img.circle_count,
+        'annotation': img.annotation
+    } for img in imgs])
+    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+    split_idx = ceil(len(df) * 0.8)
+    train_df = df.iloc[:split_idx]
+    test_df = df.iloc[split_idx:]
+    X_train = train_df.drop("annotation", axis=1)
+    y_train = train_df["annotation"]
+    tree = create_tree(X_train, y_train)
+    X_test = test_df.drop("annotation", axis=1)
+    y_test = list(test_df["annotation"])
+    y_pred = []
+    for _, row in X_test.iterrows():
+        pred = classify_image(
+            row["filesize_kb"], row["avg_color_r"], row["avg_color_g"], row["avg_color_b"],
+            row["width"], row["height"], row["contrast"], row["saturation"], row["luminosity"],
+            row["edge_density"], row["entropy"], row["texture_variance"], row["edge_energy"],
+            row["top_variance"], row["top_entropy"], row["hist_peaks"],
+            row["dark_ratio"], row["bright_ratio"], row["color_uniformity"], row["circle_count"],
+            tree
+        )
+        y_pred.append(pred)
+    total = len(y_test)
+    correct = sum(p == t for p, t in zip(y_pred, y_test))
+    accuracy = correct / total if total > 0 else 0
+    labels = sorted(set(y_test + y_pred))
+    matrix = {true: {pred: 0 for pred in labels} for true in labels}
+    for t, p in zip(y_test, y_pred):
+        matrix[t][p] += 1
+    precision_scores = {}
+    recall_scores = {}
+    f1_scores = {}
+    for label in labels:
+        TP = matrix[label][label]
+        FP = sum(matrix[other][label] for other in labels if other != label)
+        FN = sum(matrix[label][other] for other in labels if other != label)
+        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        precision_scores[label] = precision
+        recall_scores[label] = recall
+        f1_scores[label] = f1
+    print(f"\nAccuracy (arbre de décision fait maison) : {accuracy:.3f}")
+    print("\nMétriques par classe :")
+    for label in labels:
+        print(f"Classe {label} :")
+        print(f"  - Précision : {precision_scores[label]:.3f}")
+        print(f"  - Rappel    : {recall_scores[label]:.3f}")
+        print(f"  - F1-score  : {f1_scores[label]:.3f}")
+    print("\nMatrice de confusion :")
+    header = "       " + "  ".join(f"{label:>5}" for label in labels)
+    print(header)
+    for true_label in labels:
+        row = f"{true_label:>7} " + "  ".join(f"{matrix[true_label][pred_label]:5}" for pred_label in labels)
+        print(row)
 
-    features = [
-        'width', 'height', 'filesize_kb', 'avg_color_r', 'avg_color_g', 'avg_color_b',
-        'contrast', 'saturation', 'luminosity', 'edge_density', 'entropy', 'texture_variance', 'edge_energy'
-    ]
-
-    def get_X_y(imgs):
-        X, y = [], []
-        for img in imgs:
-            row = [getattr(img, f) for f in features]
-            if None in row or img.annotation not in ['Pleine', 'Vide']:
-                continue
-            X.append(row)
-            y.append(1 if img.annotation == 'Pleine' else 0)
-        return X, y
-
-    # Récupère les données
-    train_imgs = TrashImage.query.filter_by(type='Manual').all()
-    test_imgs = TrashImage.query.filter_by(type='Auto').all()
-
-    # Convertit en X/y
-    X_train, y_train = get_X_y(train_imgs)
-    X_test, y_test = get_X_y(test_imgs)
-
-    if not X_train or not X_test:
-        print("Pas assez de données valides pour entraîner ou tester.")
-        return
-
-    # Entraîne le modèle
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+def test_sklearn():
+    imgs = TrashImage.query.filter_by(type='Manual').all()
+    df = pd.DataFrame([{
+        'width': img.width,
+        'height': img.height,
+        'filesize_kb': img.filesize_kb,
+        'avg_color_r': img.avg_color_r,
+        'avg_color_g': img.avg_color_g,
+        'avg_color_b': img.avg_color_b,
+        'contrast': img.contrast,
+        'saturation': img.saturation,
+        'luminosity': img.luminosity,
+        'edge_density': img.edge_density,
+        'entropy': img.entropy,
+        'texture_variance': img.texture_variance,
+        'edge_energy': img.edge_energy,
+        'top_variance': img.top_variance,
+        'top_entropy': img.top_entropy,
+        'hist_peaks': img.hist_peaks,
+        'dark_ratio': img.dark_ratio,
+        'bright_ratio': img.bright_ratio,
+        'color_uniformity': img.color_uniformity,
+        'circle_count': img.circle_count,
+        'annotation': img.annotation
+    } for img in imgs])
+    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+    test_size = max(1, floor(len(df) * 0.2))
+    train_size = len(df) - test_size
+    train_df = df.iloc[:train_size]
+    test_df = df.iloc[train_size:]
+    X_train = train_df.drop("annotation", axis=1)
+    y_train = train_df["annotation"]
+    X_test = test_df.drop("annotation", axis=1)
+    y_test = test_df["annotation"]
+    clf = DecisionTreeClassifier(random_state=42)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
-
-    # Affiche les résultats
-    print("\n--- Évaluation du modèle ML ---")
-    print(classification_report(y_test, y_pred, target_names=['Vide', 'Pleine']))
-    print("Matrice de confusion :\n", confusion_matrix(y_test, y_pred))
-    print("Accuracy :", accuracy_score(y_test, y_pred))
-
-    # Affichage graphique de la matrice
-    disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(y_test, y_pred), display_labels=['Vide', 'Pleine'])
-    disp.plot(cmap=plt.cm.Blues)
-    plt.title("Matrice de confusion - Test sur Auto")
-    plt.show()
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"\nAccuracy (scikit-learn) : {accuracy:.3f}")
+    print("\nMétriques par classe :")
+    print(classification_report(y_test, y_pred, digits=3))
+    matrix = confusion_matrix(y_test, y_pred, labels=clf.classes_)
+    print("Matrice de confusion :")
+    header = "       " + "  ".join(f"{label:>5}" for label in clf.classes_)
+    print(header)
+    for i, true_label in enumerate(clf.classes_):
+        row = f"{true_label:>7} " + "  ".join(f"{matrix[i][j]:5}" for j in range(len(clf.classes_)))
+        print(row)
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -792,6 +940,7 @@ def user():
             images = request.files.getlist('image')
             for img in images:
                 add_img(img)
+            generate_matplotlib()
             return redirect('/predict')
         
     images = TrashImage.query.filter_by(annotation='Auto').all()
@@ -848,33 +997,34 @@ def settings():
         images = request.files.getlist('image')
         for img in images:
             add_img(img)
-            imgs = TrashImage.query.filter_by(type='Manual').all()
-            df = pd.DataFrame([{  
-                'width': img.width,
-                'height': img.height,
-                'filesize_kb': img.filesize_kb,
-                'avg_color_r': img.avg_color_r,
-                'avg_color_g': img.avg_color_g,
-                'avg_color_b': img.avg_color_b,
-                'contrast': img.contrast,
-                'saturation': img.saturation,
-                'luminosity': img.luminosity,
-                'edge_density': img.edge_density,
-                'entropy': img.entropy,
-                'texture_variance': img.texture_variance,
-                'edge_energy': img.edge_energy,     
-                'top_variance': img.top_variance,
-                'top_entropy': img.top_entropy,
-                'hist_peaks': img.hist_peaks,
-                'dark_ratio': img.dark_ratio,
-                'bright_ratio': img.bright_ratio,
-                'color_uniformity': img.color_uniformity,
-                'circle_count': img.circle_count,
-                'annotation': img.annotation
-            } for img in imgs])
-            X = df.drop("annotation", axis=1)
-            y = df["annotation"]
-            save_tree(create_tree(X,y))
+        generate_matplotlib()
+        imgs = TrashImage.query.filter_by(type='Manual').all()
+        df = pd.DataFrame([{  
+            'width': img.width,
+            'height': img.height,
+            'filesize_kb': img.filesize_kb,
+            'avg_color_r': img.avg_color_r,
+            'avg_color_g': img.avg_color_g,
+            'avg_color_b': img.avg_color_b,
+            'contrast': img.contrast,
+            'saturation': img.saturation,
+            'luminosity': img.luminosity,
+            'edge_density': img.edge_density,
+            'entropy': img.entropy,
+            'texture_variance': img.texture_variance,
+            'edge_energy': img.edge_energy,     
+            'top_variance': img.top_variance,
+            'top_entropy': img.top_entropy,
+            'hist_peaks': img.hist_peaks,
+            'dark_ratio': img.dark_ratio,
+            'bright_ratio': img.bright_ratio,
+            'color_uniformity': img.color_uniformity,
+            'circle_count': img.circle_count,
+            'annotation': img.annotation
+        } for img in imgs])
+        X = df.drop("annotation", axis=1)
+        y = df["annotation"]
+        save_tree(create_tree(X,y))
     images = TrashImage.query.order_by(TrashImage.id.desc()).all()
     return render_template('settings.html', images=images, user=user)
 
@@ -924,6 +1074,7 @@ def dashboard():
         paths = [f"{"../static/matplotlib"}/{f}" for f in files]
     else:
         paths = generate_matplotlib()
+
     return render_template(
         'dashboard.html', 
         rules=rules,
@@ -946,60 +1097,9 @@ def delete_marker(marker_id):
 def handle_connect():
     print("Client connecté")
 
-from math import ceil
-def test_manual():
-        imgs = TrashImage.query.filter_by(type='Manual').all()
-        df = pd.DataFrame([{
-            'width': img.width,
-            'height': img.height,
-            'filesize_kb': img.filesize_kb,
-            'avg_color_r': img.avg_color_r,
-            'avg_color_g': img.avg_color_g,
-            'avg_color_b': img.avg_color_b,
-            'contrast': img.contrast,
-            'saturation': img.saturation,
-            'luminosity': img.luminosity,
-            'edge_density': img.edge_density,
-            'entropy': img.entropy,
-            'texture_variance': img.texture_variance,
-            'edge_energy': img.edge_energy,
-            'top_variance': img.top_variance,
-            'top_entropy': img.top_entropy,
-            'hist_peaks': img.hist_peaks,
-            'dark_ratio': img.dark_ratio,
-            'bright_ratio': img.bright_ratio,
-            'color_uniformity': img.color_uniformity,
-            'circle_count': img.circle_count,
-            'annotation': img.annotation
-        } for img in imgs])
-
-        df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-        split_idx = ceil(len(df) * 0.8)
-        train_df = df.iloc[:split_idx]
-        test_df = df.iloc[split_idx:]
-        X_train = train_df.drop("annotation", axis=1)
-        y_train = train_df["annotation"]
-        tree = create_tree(X_train, y_train)
-        X_test = test_df.drop("annotation", axis=1)
-        y_test = test_df["annotation"]
-        y_pred = []
-        for _, row in X_test.iterrows():
-            pred = classify_image(
-                row["filesize_kb"], row["avg_color_r"], row["avg_color_g"], row["avg_color_b"],
-                row["width"], row["height"], row["contrast"], row["saturation"], row["luminosity"],
-                row["edge_density"], row["entropy"], row["texture_variance"], row["edge_energy"],
-                row["top_variance"], row["top_entropy"], row["hist_peaks"],
-                row["dark_ratio"], row["bright_ratio"], row["color_uniformity"], row["circle_count"],
-                tree
-            )
-            y_pred.append(pred)
-        correct = sum(p == t for p, t in zip(y_pred, y_test))
-        total = len(y_test)
-        accuracy = correct / total if total > 0 else 0
-        print(f"Accuracy (arbre de décision fait maison) : {accuracy:.3f}")
-
 if __name__ == '__main__':
     with app.app_context():
-        print(test_manual())
+        test_manual()
+        test_sklearn()
     socketio.run(app, debug=True)
     app.run(debug=True)
