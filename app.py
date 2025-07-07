@@ -971,7 +971,7 @@ def test_manual():
             'color_uniformity': img.color_uniformity,
             'circle_count': img.circle_count,
             'annotation': img.annotation
-        } for img in imgs if img.annotation in ['Pleine', 'Vide']])
+        } for img in imgs])
 
         df = df.sample(frac=1, random_state=42).reset_index(drop=True)
         split_idx = ceil(len(df) * 0.8)
@@ -1000,6 +1000,6 @@ def test_manual():
 
 if __name__ == '__main__':
     with app.app_context():
-        test_manual()
+        print(test_manual())
     socketio.run(app, debug=True)
     app.run(debug=True)
