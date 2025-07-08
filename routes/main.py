@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, session, send_from_directory
-from models.models import TrashImage, ClassificationRule, Settings, User
+from models.models import TrashImage, ClassificationRule, Settings, User, update_rule
 from utils.classification import calculate_seuils_from_db
 from utils.visualization import generate_matplotlib
 from utils.decisiontree import create_tree, save_tree
@@ -60,7 +60,6 @@ def predict():
                 if name not in ["use_auto_rules", "form_type"]:
                     try:
                         value = float(request.form[name])
-                        from utils.classification import update_rule
                         update_rule(name, value)
                     except ValueError:
                         continue
