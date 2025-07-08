@@ -1,6 +1,6 @@
 import pandas as pd
 from math import ceil, floor
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from models.models import TrashImage
 from utils.decisiontree import create_tree
@@ -135,7 +135,7 @@ def test_sklearn():
     X_test = test_df.drop("annotation", axis=1)
     y_test = test_df["annotation"]
     # Entraînement du modèle scikit-learn
-    clf = DecisionTreeClassifier(random_state=42)
+    clf = RandomForestClassifier(random_state=42)
     clf.fit(X_train, y_train)
     # Prédiction
     y_pred = clf.predict(X_test)
