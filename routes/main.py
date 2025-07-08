@@ -213,7 +213,10 @@ def dashboard():
     if files_exist:
         paths = [f"../static/matplotlib/{f}" for f in files]
     else:
-        paths = generate_matplotlib()
+        if len(images)>0:
+            paths = generate_matplotlib()
+        else:
+            paths = [f"../static/matplotlib/{f}" for f in files]
     return render_template(
         'dashboard.html', 
         rules=rules,
