@@ -132,34 +132,34 @@ def admin():
             add_img(img)
     # Entraînement du modèle avec les nouvelles données
     imgs = TrashImage.query.filter_by(type='Manual').all()
-    df = pd.DataFrame([{  
-        'width': img.width,
-        'height': img.height,
-        'filesize_kb': img.filesize_kb,
-        'avg_color_r': img.avg_color_r,
-        'avg_color_g': img.avg_color_g,
-        'avg_color_b': img.avg_color_b,
-        'contrast': img.contrast,
-        'saturation': img.saturation,
-        'luminosity': img.luminosity,
-        'edge_density': img.edge_density,
-        'entropy': img.entropy,
-        'texture_variance': img.texture_variance,
-        'edge_energy': img.edge_energy,     
-        'top_variance': img.top_variance,
-        'top_entropy': img.top_entropy,
-        'hist_peaks': img.hist_peaks,
-        'dark_ratio': img.dark_ratio,
-        'bright_ratio': img.bright_ratio,
-        'color_uniformity': img.color_uniformity,
-        'circle_count': img.circle_count,
-        'annotation': img.annotation
-    } for img in imgs])
-    X = df.drop("annotation", axis=1)
-    y = df["annotation"]
-    save_tree(create_tree(X, y))
     if len(imgs)>1:
         try:
+            df = pd.DataFrame([{  
+                'width': img.width,
+                'height': img.height,
+                'filesize_kb': img.filesize_kb,
+                'avg_color_r': img.avg_color_r,
+                'avg_color_g': img.avg_color_g,
+                'avg_color_b': img.avg_color_b,
+                'contrast': img.contrast,
+                'saturation': img.saturation,
+                'luminosity': img.luminosity,
+                'edge_density': img.edge_density,
+                'entropy': img.entropy,
+                'texture_variance': img.texture_variance,
+                'edge_energy': img.edge_energy,     
+                'top_variance': img.top_variance,
+                'top_entropy': img.top_entropy,
+                'hist_peaks': img.hist_peaks,
+                'dark_ratio': img.dark_ratio,
+                'bright_ratio': img.bright_ratio,
+                'color_uniformity': img.color_uniformity,
+                'circle_count': img.circle_count,
+                'annotation': img.annotation
+            } for img in imgs])
+            X = df.drop("annotation", axis=1)
+            y = df["annotation"]
+            save_tree(create_tree(X, y))
             generate_matplotlib()
         except ValueError as e:
             print(f"Erreur matplotlib : {e}")
