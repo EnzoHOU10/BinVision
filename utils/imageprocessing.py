@@ -75,6 +75,7 @@ def crop_img(image_path, marge_ratio=0.3, min_size=50, debug=False, output_dir="
 def add_img(img):
     if img and allowed_file(img.filename):
         filename = img.filename
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         img.save(filepath)
         crop_filepath = crop_img(filepath)

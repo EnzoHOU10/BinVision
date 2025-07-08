@@ -9,7 +9,6 @@ from werkzeug.security import generate_password_hash
 from utils.testing import test_manual, test_sklearn
 from flask import send_from_directory
 from dotenv import load_dotenv
-import os
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}

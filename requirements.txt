@@ -5,7 +5,7 @@ pillow
 numpy
 opencv-python
 matplotlib
-mysql-connector-python
+psycopg2
 datetime
 scikit-image
 scikit-learn 
