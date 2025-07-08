@@ -10,7 +10,7 @@ from models.models import TrashImage, ClassificationRule, Settings, User, update
 from flask import current_app as app
 from pathlib import Path
 
-def crop_img(image_path, marge_ratio=0.3, min_size=50, debug=False, output_dir="uploads/crop"):
+def crop_img(image_path, marge_ratio=0.3, min_size=80, debug=False, output_dir="uploads/crop"):
     """Détecte et recadre automatiquement une poubelle dans une image"""
     img = cv2.imread(image_path)
     if img is None:
