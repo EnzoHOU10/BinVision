@@ -10,3 +10,6 @@ datetime
 scikit-image
 scikit-learn 
 pandas
+gunicorn
+Werkzeug
+seaborn
