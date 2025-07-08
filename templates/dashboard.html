@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BinVision - Dashboard</title>
+  <title>BinVision - Tableau de bord</title>
   <link
     rel="stylesheet"
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -19,23 +19,23 @@
       <div id="start">
         <img src="../static/logo/logoname.png" loading="lazy" alt="Chargement..." id="startlogo" />
       </div>
-      <a href="/" data-icon="🏠">Home</a>
+      <a href="/" data-icon="🏠">Accueil</a>
       <a href="/predict" data-icon="🔍">Pleine/Vide</a>
       {% if user and user.role == 'admin' %}
-      <a href="/admin" data-icon="⚙️">Settings</a>
+      <a href="/admin" data-icon="⚙️">Paramètres</a>
       {% endif %}
-      <a href="/dashboard" data-icon="📊"><strong>Dashboard</strong></a>
+      <a href="/dashboard" data-icon="📊"><strong>Tableau de bord</strong></a>
       <div id="end">
         <p>All rights reserved</p>
-        <p>© 2024 BinVision</p>
+        <p>© 2025 BinVision</p>
         <p>Version 1.0.0</p>
       </div>
     </div>
   <div class="main-content">
     <div class="topbar">
-      <h1>Dashboard</h1>
+      <h1>Tableau de bord</h1>
       <div class="btnright">
-        <a href="/account" class="btn btn-primary btn-sm">Account</a>
+        <a href="/account" class="btn btn-primary btn-sm">Compte</a>
       </div>
     </div>
     <div class="dashboard-container">
