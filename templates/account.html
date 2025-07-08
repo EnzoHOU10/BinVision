@@ -12,7 +12,7 @@
       <div class="info" id="info-block">
         <h2 class="mb-4 text-center account-title">Bienvenue, {{ user.username }} !</h2>
         <div style="display:flex; align-items:center; justify-content:center; margin-bottom:24px;">
-          <img src="../static/icons/cleaner.png" alt="avatar" class="account-avatar">
+          <img src="../static/icons/cleaner.png" alt="avatar" loading="lazy" class="account-avatar">
           <div>
             <div class="account-userinfo">{{ user.username }}</div>
             <div class="account-role">Rôle : <span style="font-weight:500;">{{ user.role if user.role else 'Utilisateur' }}</span></div>

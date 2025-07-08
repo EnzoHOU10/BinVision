@@ -13,7 +13,7 @@
   </head>
   <body>
     <div class="sidebar">
-      <div id="start"><img src="../static/logo/logoname.png" alt="Chargement..." id="startlogo" /></div>
+      <div id="start"><img src="../static/logo/logoname.png" loading="lazy" alt="Chargement..." id="startlogo" /></div>
       <a href="/" data-icon="🏠">Home</a>
       <a href="/predict" data-icon="🔍">Pleine/Vide</a>
       {% if user and user.role == 'admin' %}
@@ -35,7 +35,7 @@
         <div class="buttonrow">
           <button class="btn" onclick="document.getElementById('input').click()">Selectionner un/des images</button>
         </div>
-        <img id="loading-img" src="../static/img/chargement.gif" alt="Chargement..." style="display:none; margin:auto;" />
+        <img id="loading-img" src="../static/img/chargement.gif" loading="lazy" alt="Chargement..." style="display:none; margin:auto;" />
         <form method="POST" id="Form" enctype="multipart/form-data">
           <input
             type="file"
@@ -89,6 +89,7 @@
                       <img
                         src="{{ url_for('main.uploaded_file', filename=img.filename) }}"
                         width="80"
+                        loading="lazy"
                         alt="Image"
                       />
                     </td>
@@ -124,7 +125,7 @@
       <div id="lightbox" class="lightbox-container">
         <div class="lightbox-content">
           <button onclick="closeLightbox()" class="btn">X</button>
-          <img id="lightbox-img" src="" class="lightbox-img" />
+          <img id="lightbox-img" loading="lazy" src="" class="lightbox-img" />
         </div>
       </div>
     </div>
