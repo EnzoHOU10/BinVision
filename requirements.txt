@@ -5,7 +5,7 @@ pillow
 numpy
 opencv-python
 matplotlib
-psycopg2
+psycopg2-binary
 datetime
 scikit-image
 scikit-learn 
