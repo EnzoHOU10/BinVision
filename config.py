@@ -1,7 +1,7 @@
 # config.py
-DB_USERNAME = 'postgres'
-DB_PASSWORD = 'djamel10'
-DB_HOST = 'localhost'
+DB_USERNAME = 'user'
+DB_PASSWORD = 'IbgTIo3ThIXDLc0dywDcuvAEcznsv576'
+DB_HOST = 'dpg-d1mg24h5pdvs73cvv2s0-a.frankfurt-postgres.render.com'
 DB_NAME = 'db_binvision'
 DB_PORT = '5432'
 
