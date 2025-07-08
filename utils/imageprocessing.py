@@ -69,7 +69,7 @@ def crop_img(image_path, marge_ratio=0.3, min_size=50, debug=False, output_dir="
             crop_filename = os.path.basename(image_path).replace('.', '_crop.')
             crop_path = os.path.join(output_dir, crop_filename)
             cv2.imwrite(crop_path, cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR))
-            return crop_path
+            return crop_path.replace('\\', '/')
     return image_path
 
 def add_img(img):
