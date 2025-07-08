@@ -6,6 +6,7 @@ from utils.decisiontree import create_tree, save_tree
 from utils.imageprocessing import add_img
 import pandas as pd
 import os
+from flask import current_app as app
 
 google_maps_key = os.getenv("GOOGLE_MAPS_KEY")
 
@@ -14,7 +15,6 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/uploads/<filename>')
 def uploaded_file(filename):
     """Servir les fichiers uploadés"""
-    from app import app
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @main_bp.route('/', methods=['GET', 'POST'])
