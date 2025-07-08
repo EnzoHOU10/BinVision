@@ -8,7 +8,6 @@ from routes.main import main_bp
 from werkzeug.security import generate_password_hash
 from utils.testing import test_manual, test_sklearn
 from flask import send_from_directory
-from utils.testing import test_manual, test_sklearn
 from dotenv import load_dotenv
 import os
 
