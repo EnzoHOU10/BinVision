@@ -6,6 +6,7 @@ numpy
 opencv-python
 matplotlib
 psycopg2-binary
+mysql-connector-python
 datetime
 scikit-image
 scikit-learn 
