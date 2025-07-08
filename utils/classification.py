@@ -97,7 +97,7 @@ def _classify_with_rules(features):
     score = 0
     # Règles de base
     if features["height"] > get_rule("height"):
-        score += 2
+        score += 1
     if features["width"] > get_rule("width"):
         score += 1
     if features["filesize_kb"] > get_rule("filesize_kb"):
@@ -138,22 +138,16 @@ def _classify_with_rules(features):
     if (features["dark_ratio"] > 0.4 and features["avg_color_r"] < 80 and 
         features["avg_color_g"] < 80 and features["avg_color_b"] < 80):
         score += 2
-    
     if features["entropy"] > 4.5 and features["texture_variance"] > 2.0:
         score += 1
-    
     if features["saturation"] < 30 and features["luminosity"] < 50:
         score += 1
-    
     if features["bright_ratio"] > 0.5 and features["dark_ratio"] < 0.1:
         score -= 2
-    
     if features["edge_density"] < 0.1 and features["entropy"] < 3.5:
         score -= 2
-    
     if features["circle_count"] >= 3 and features["color_uniformity"] > 0.5:
         score -= 2
-    
     if features["filesize_kb"] < 15 and features["contrast"] < 25:
         score -= 2
     # Comparaison avec les seuils calculés
