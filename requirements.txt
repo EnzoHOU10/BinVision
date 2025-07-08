@@ -13,3 +13,4 @@ pandas
 gunicorn
 Werkzeug
 seaborn
+python-dotenv

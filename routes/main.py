@@ -7,6 +7,8 @@ from utils.imageprocessing import add_img
 import pandas as pd
 import os
 
+google_maps_key = os.getenv("GOOGLE_MAPS_KEY")
+
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/uploads/<filename>')
@@ -39,6 +41,7 @@ def home():
         seuils_plein=seuils_plein,
         seuils_vide=seuils_vide,
         images=images_conv,
+        google_maps_key=google_maps_key,
         user=user
     )
 
@@ -222,6 +225,7 @@ def dashboard():
         rules=rules,
         images=images_conv,
         paths=paths,
+        google_maps_key=google_maps_key,
         user=user
     )
 

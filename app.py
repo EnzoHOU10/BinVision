@@ -9,6 +9,8 @@ from werkzeug.security import generate_password_hash
 from utils.testing import test_manual, test_sklearn
 from flask import send_from_directory
 from utils.testing import test_manual, test_sklearn
+from dotenv import load_dotenv
+import os
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -20,6 +22,8 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.secret_key = "projetbinvision2025"
 # Initialisation des extensions
 socketio = SocketIO(app)
+# Initialisation des clés
+load_dotenv()
 # Enregistrement des blueprints
 app.register_blueprint(main_bp)
 app.register_blueprint(auth_bp)
