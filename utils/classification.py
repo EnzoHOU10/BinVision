@@ -135,20 +135,20 @@ def _classify_with_rules(features):
     if features["hist_peaks"] < get_rule("hist_peaks"):
         score += 1
     # Règles combinées
-    if (features["dark_ratio"] > 0.4 and features["avg_color_r"] < 80 and 
-        features["avg_color_g"] < 80 and features["avg_color_b"] < 80):
+    if (features["dark_ratio"] > get_rule("dark_ratio") and features["avg_color_r"] < get_rule("avg_color_r") and 
+        features["avg_color_g"] < get_rule("avg_color_g") and features["avg_color_b"] < get_rule("avg_color_b")):
         score += 2
-    if features["entropy"] > 4.5 and features["texture_variance"] > 2.0:
+    if features["entropy"] > get_rule("entropy") and features["texture_variance"] > get_rule("texture_variance"):
         score += 1
-    if features["saturation"] < 30 and features["luminosity"] < 50:
+    if features["saturation"] < get_rule("saturation") and features["luminosity"] < get_rule("luminosity"):
         score += 1
-    if features["bright_ratio"] > 0.5 and features["dark_ratio"] < 0.1:
+    if features["bright_ratio"] > get_rule("bright_ratio") and features["dark_ratio"] < get_rule("dark_ratio"):
         score -= 2
-    if features["edge_density"] < 0.1 and features["entropy"] < 3.5:
+    if features["edge_density"] < get_rule("edge_density") and features["entropy"] < get_rule("entropy"):
         score -= 2
-    if features["circle_count"] >= 3 and features["color_uniformity"] > 0.5:
+    if features["circle_count"] >= get_rule("circle_count") and features["color_uniformity"] > get_rule("color_uniformity"):
         score -= 2
-    if features["filesize_kb"] < 15 and features["contrast"] < 25:
+    if features["filesize_kb"] < get_rule("filesize_kb") and features["contrast"] < get_rule("contrast"):
         score -= 2
     # Comparaison avec les seuils calculés
     if seuils_plein and seuils_vide:
